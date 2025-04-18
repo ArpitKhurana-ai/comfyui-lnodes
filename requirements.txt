@@ -1,0 +1,4 @@
+# Python dependencies for custom nodes
+requests
+transformers
+opencv-python
