@@ -1,0 +1,253 @@
+{
+  "last_node_id": 63,
+  "last_link_id": 162,
+  "nodes": [
+    {
+      "id": 61,
+      "type": "FaceEmbedDistance",
+      "pos": [
+        2322,
+        -86
+      ],
+      "size": {
+        "0": 267,
+        "1": 166
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "analysis_models",
+          "type": "ANALYSIS_MODELS",
+          "link": 160
+        },
+        {
+          "name": "reference",
+          "type": "IMAGE",
+          "link": 158
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 162
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            157
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "euclidean",
+          "type": "FLOAT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "cosine",
+          "type": "FLOAT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "csv",
+          "type": "STRING",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FaceEmbedDistance"
+      },
+      "widgets_values": [
+        2,
+        2,
+        true
+      ]
+    },
+    {
+      "id": 10,
+      "type": "LoadImage",
+      "pos": [
+        1656,
+        -393
+      ],
+      "size": {
+        "0": 390.733154296875,
+        "1": 482.0174560546875
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            158
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "theron3.jpg",
+        "image"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 63,
+      "type": "LoadImage",
+      "pos": [
+        1670,
+        154
+      ],
+      "size": {
+        "0": 390.733154296875,
+        "1": 482.0174560546875
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            162
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "ComfyUI_00001__1.png",
+        "image"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 41,
+      "type": "PreviewImage",
+      "pos": [
+        2663,
+        -59
+      ],
+      "size": {
+        "0": 798.6452026367188,
+        "1": 792.34814453125
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 157
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 62,
+      "type": "FaceAnalysisModels",
+      "pos": [
+        2286,
+        -255
+      ],
+      "size": {
+        "0": 315,
+        "1": 82
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "ANALYSIS_MODELS",
+          "type": "ANALYSIS_MODELS",
+          "links": [
+            160
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FaceAnalysisModels"
+      },
+      "widgets_values": [
+        "insightface",
+        "CPU"
+      ]
+    }
+  ],
+  "links": [
+    [
+      157,
+      61,
+      0,
+      41,
+      0,
+      "IMAGE"
+    ],
+    [
+      158,
+      10,
+      0,
+      61,
+      1,
+      "IMAGE"
+    ],
+    [
+      160,
+      62,
+      0,
+      61,
+      0,
+      "ANALYSIS_MODELS"
+    ],
+    [
+      162,
+      63,
+      0,
+      61,
+      2,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}
