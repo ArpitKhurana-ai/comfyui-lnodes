@@ -7,20 +7,21 @@ echo "🟡 Starting ComfyUI LinkedIn Edition Setup..."
 ln -fs /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && \
 dpkg-reconfigure -f noninteractive tzdata
 
-# Hugging Face Login
+# Hugging Face login
 echo "🔐 Authenticating Hugging Face..."
 huggingface-cli login --token $HF_TOKEN || true
 
-# Fix any corrupted ComfyUI clones
-if [ -f "/workspace/ComfyUI/main.py" ]; then
-  echo "✅ ComfyUI already exists."
-else
-  echo "🧹 Cleaning bad ComfyUI folder..."
-  rm -rf /workspace/ComfyUI
-  git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
+# Avoid being inside ComfyUI before deleting
+cd /workspace || exit 1
+
+# Clean if broken
+if [ ! -f "/workspace/ComfyUI/main.py" ]; then
+    echo "🧹 Cleaning bad ComfyUI folder..."
+    rm -rf /workspace/ComfyUI
+    git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
 fi
 
-# Verify main.py
+# Safety check again
 if [ ! -f "/workspace/ComfyUI/main.py" ]; then
     echo "❌ main.py missing. Aborting."
     exit 1
@@ -28,7 +29,7 @@ fi
 
 cd /workspace/ComfyUI
 
-# Step 2: Nodes & Workflows
+# Step 2: Nodes + workflows
 echo "📦 Syncing custom nodes/workflows..."
 rm -rf /tmp/lnodes
 git clone https://github.com/ArpitKhurana-ai/comfyui-lnodes.git /tmp/lnodes
@@ -37,13 +38,13 @@ mkdir -p custom_nodes workflows
 cp -r /tmp/lnodes/custom_nodes/* custom_nodes/ || true
 cp -r /tmp/lnodes/workflows/* workflows/ || true
 
-# Step 2b: Add ComfyUI Manager (safe overwrite)
-echo "🧩 Adding ComfyUI Manager..."
+# Step 2b: ComfyUI Manager
+echo "🧩 Installing ComfyUI Manager..."
 rm -rf custom_nodes/ComfyUI-Manager
 git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-Manager
 
-# Step 3: Models from HF
-echo "📥 Pulling required models..."
+# Step 3: Models
+echo "📥 Downloading models from Hugging Face..."
 pip install -q huggingface_hub
 
 cd /workspace/ComfyUI/models
@@ -53,7 +54,7 @@ done
 
 declare -A hf_files
 hf_files["checkpoints"]="realisticVisionV60B1_v51HyperVAE.safetensors"
-hf_files["checkpoints"]="sd_xl_base_1.0.safetensors"
+hf_files["checkpoints2"]="sd_xl_base_1.0.safetensors"
 hf_files["vae"]="sdxl_vae.safetensors"
 hf_files["ipadapter"]="ip-adapter-plus-face_sdxl_vit-h.safetensors"
 hf_files["controlnet"]="OpenPoseXL2.safetensors"
@@ -63,7 +64,7 @@ hf_files["instantid"]="ip-adapter.bin"
 
 for folder in "${!hf_files[@]}"; do
     filename="${hf_files[$folder]}"
-    echo "⏬ Downloading $folder/$filename"
+    echo "⏬ $folder/$filename"
     python3 -c "
 from huggingface_hub import hf_hub_download
 hf_hub_download(
@@ -75,7 +76,7 @@ hf_hub_download(
 )"
 done
 
-# Step 4: Launch GUI
-echo "🚀 Launching ComfyUI on port 8188..."
+# ✅ Launch ComfyUI
+echo "🚀 Starting ComfyUI on port 8188..."
 cd /workspace/ComfyUI
 python3 main.py --listen 0.0.0.0 --port 8188
