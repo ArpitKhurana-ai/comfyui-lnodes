@@ -48,7 +48,7 @@ git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-M
 
 # Step 4: Download models from Hugging Face
 echo "\U0001F4E5 Downloading models from Hugging Face..."
-python3 -m pip install --quiet huggingface_hub
+python3 -m pip install huggingface_hub
 
 cd /workspace/ComfyUI/models
 
