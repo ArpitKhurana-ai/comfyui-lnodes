@@ -40,6 +40,14 @@ mkdir -p /workspace/ComfyUI/workflows
 cp -r /tmp/lnodes/custom_nodes/* /workspace/ComfyUI/custom_nodes/
 cp -r /tmp/lnodes/workflows/* /workspace/ComfyUI/workflows/
 
+# ✅ Add ComfyUI-Manager if not already there
+if [ ! -d "/workspace/ComfyUI/custom_nodes/ComfyUI-Manager" ]; then
+    echo "🧩 Installing ComfyUI-Manager..."
+    git clone https://github.com/ltdrdata/ComfyUI-Manager.git /workspace/ComfyUI/custom_nodes/ComfyUI-Manager
+else
+    echo "✅ ComfyUI-Manager already installed."
+fi
+
 # Step 3: Models from Hugging Face
 echo "📥 Downloading models from Hugging Face..."
 mkdir -p /workspace/ComfyUI/models
@@ -57,3 +65,4 @@ done
 echo "🚀 Launching ComfyUI on port 8188..."
 cd /workspace/ComfyUI
 python3 main.py --listen 0.0.0.0 --port 8188
+
