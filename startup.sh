@@ -3,29 +3,29 @@
 set -e
 echo "🟡 Starting ComfyUI LinkedIn Edition Setup..."
 
-# Timezone
+# ⏱️ Timezone
 ln -fs /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && dpkg-reconfigure -f noninteractive tzdata
 
-# Authenticate Hugging Face
-echo "🔐 Authenticating with Hugging Face..."
+# 🔐 HuggingFace login
+echo "🔐 Authenticating Hugging Face..."
 huggingface-cli login --token $HF_TOKEN || true
 
-# Clone ComfyUI if not exists
+# 🧠 Clone ComfyUI if not already
 if [ ! -d "/workspace/ComfyUI" ]; then
-    echo "🟢 Cloning ComfyUI..."
+    echo "🧠 Cloning ComfyUI..."
     git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
 fi
 
 # Safety check
 if [ ! -f "/workspace/ComfyUI/main.py" ]; then
-    echo "❌ main.py not found in ComfyUI folder!"
+    echo "❌ main.py missing. Aborting."
     exit 1
 fi
 
 cd /workspace/ComfyUI
 
-# Step 2: Custom nodes & workflows
-echo "📦 Pulling custom nodes & workflows from GitHub..."
+# 📦 Pull nodes + workflows
+echo "📦 Pulling custom nodes + workflows..."
 rm -rf /tmp/lnodes
 git clone https://github.com/ArpitKhurana-ai/comfyui-lnodes.git /tmp/lnodes
 
@@ -33,27 +33,36 @@ mkdir -p custom_nodes workflows
 cp -r /tmp/lnodes/custom_nodes/* custom_nodes/
 cp -r /tmp/lnodes/workflows/* workflows/
 
-# Step 2b: Install ComfyUI Manager
-echo "🧩 Installing ComfyUI Manager..."
-git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-Manager
+# 🧩 Install ComfyUI Manager (redundant safety)
+if [ ! -d "custom_nodes/ComfyUI-Manager" ]; then
+    git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-Manager
+fi
 
-# Step 3: Download models from Hugging Face using huggingface_hub
-echo "📥 Downloading models from Hugging Face..."
-pip install -q huggingface_hub
+# ✅ InstantID Requirements
+echo "📁 Creating InstantID + FaceID folders..."
+mkdir -p models/instantid
+mkdir -p models/insightface/models/antelopev2
 
+# 📥 Auto-download core models
+echo "📥 Downloading LinkedIn essential models from Hugging Face..."
 cd /workspace/ComfyUI/models
+
+# Create base dirs
 for folder in checkpoints clip configs controlnet ipadapter upscale_models vae clip_vision; do
     mkdir -p "$folder"
 done
 
+# Define needed files
 declare -A hf_files
 hf_files["checkpoints"]="realisticVisionV60B1_v51HyperVAE.safetensors"
+hf_files["checkpoints-sdxl"]="sd_xl_base_1.0.safetensors"
 hf_files["vae"]="sdxl_vae.safetensors"
 hf_files["ipadapter"]="ip-adapter-plus-face_sdxl_vit-h.safetensors"
 hf_files["controlnet"]="OpenPoseXL2.safetensors"
 hf_files["upscale_models"]="RealESRGAN_x4plus.pth"
 hf_files["clip_vision"]="CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
 
+# Download
 for folder in "${!hf_files[@]}"; do
     filename="${hf_files[$folder]}"
     echo "⏬ $folder/$filename"
@@ -68,7 +77,7 @@ hf_hub_download(
 )"
 done
 
-# Step 4: Launch
+# 🚀 Run ComfyUI
 echo "🚀 Launching ComfyUI on port 8188..."
 cd /workspace/ComfyUI
 python3 main.py --listen 0.0.0.0 --port 8188
