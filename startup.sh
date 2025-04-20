@@ -60,16 +60,7 @@ fi
 
 # ✅ Install Python dependencies
 echo "📦 Installing Python dependencies..."
-pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif segment-anything pycocotools
-
-# ✅ Performance optimizations
-echo "⚡ Applying performance optimizations..."
-export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:128"
-export ATTENTION_OPTIMIZE_MEMORY=1
-export CUDA_MODULE_LOADING=LAZY
-
-# Update PyTorch to avoid unsafe loading warnings
-pip install --quiet --upgrade torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif
 
 # ✅ Create persistent model folders
 echo "📁 Creating model folders in $COMFYUI_MODELS_PATH..."
@@ -125,35 +116,16 @@ done
 
 # ✅ Final fix for IPAdapterUnifiedLoader's ClipVision check
 echo "🧠 Ensuring ClipVision model is in place..."
-CLIP_VISION_PATH="/workspace/models/clip_vision"
-mkdir -p "$CLIP_VISION_PATH"
-
-# Download the model if missing
-if [ ! -f "$CLIP_VISION_PATH/sdxl_vision_encoder.safetensors" ]; then
-    python3 -c "
+python3 -c "
 import os
 from huggingface_hub import hf_hub_download
 hf_hub_download(
     repo_id='ArpitKhurana/comfyui-models',
     filename='clip_vision/sdxl_vision_encoder.safetensors',
-    local_dir='$CLIP_VISION_PATH',
+    local_dir='/workspace/models/clip_vision',
     repo_type='model',
     token=os.environ['HF_TOKEN']
 )"
-fi
-
-# Create the expected symlink name that IPAdapter+ looks for
-ln -sf "$CLIP_VISION_PATH/sdxl_vision_encoder.safetensors" "$CLIP_VISION_PATH/clip_vision.safetensors"
-
-# Verify model integrity
-echo "🔍 Verifying ClipVision model..."
-if [ -f "$CLIP_VISION_PATH/clip_vision.safetensors" ]; then
-    echo "✅ ClipVision model verified at $CLIP_VISION_PATH/clip_vision.safetensors"
-    echo "📏 Size: $(du -h "$CLIP_VISION_PATH/clip_vision.safetensors" | cut -f1)"
-else
-    echo "❌ ClipVision model not found after download attempt"
-    exit 1
-fi
 
 # ✅ Launch ComfyUI
 echo "🚀 Launching ComfyUI on port 8188..."
