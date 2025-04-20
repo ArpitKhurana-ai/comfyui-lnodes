@@ -46,11 +46,19 @@ echo "🧠 Installing ComfyUI Manager..."
 rm -rf custom_nodes/ComfyUI-Manager
 git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-Manager
 
-# Step 4: Install huggingface_hub if not already
-echo "📦 Installing huggingface_hub..."
-python3 -m pip install --quiet huggingface_hub
+# ✅ Step 4: Install extra Python dependencies
+echo "🧩 Installing Python dependencies..."
+pip install --quiet huggingface_hub onnxruntime-gpu insightface
 
-# Step 5: Create model folders safely
+# ✅ Step 5: Fix __init__.py if missing in Impact-Pack
+echo "🔧 Ensuring __init__.py for ComfyUI-Impact-Pack..."
+impact_path="custom_nodes/ComfyUI-Impact-Pack"
+if [ -d "$impact_path" ] && [ ! -f "$impact_path/__init__.py" ]; then
+    touch "$impact_path/__init__.py"
+    echo "✅ __init__.py added to $impact_path"
+fi
+
+# Step 6: Create model folders safely
 echo "📁 Creating model folders..."
 cd /workspace/ComfyUI/models
 
@@ -72,7 +80,7 @@ for folder in "${folders[@]}"; do
     mkdir -p "/workspace/ComfyUI/models/$folder"
 done
 
-# Step 6: Download models from Hugging Face
+# Step 7: Download models from Hugging Face
 echo "⬇️ Downloading model files..."
 
 declare -A hf_files
