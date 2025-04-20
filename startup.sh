@@ -79,9 +79,7 @@ folders=(
     "vae"
     "clip_vision"
     "instantid"
-    "insightface/antelopev2"
-    "insightface/antelopev2/detection"
-    "insightface/antelopev2/recognition"
+    "insightface/models/antelopev2"
 )
 for folder in "${folders[@]}"; do
     mkdir -p "$COMFYUI_MODELS_PATH/$folder"
@@ -98,9 +96,7 @@ hf_files["upscale_models"]="RealESRGAN_x4plus.pth"
 hf_files["clip"]="CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
 hf_files["clip_vision"]="sdxl_vision_encoder.safetensors"
 hf_files["instantid"]="ip-adapter.bin"
-hf_files["insightface/antelopev2"]="1k3d68.onnx 2d106det.onnx genderage.onnx"
-hf_files["insightface/antelopev2/detection"]="scrfd_10g_bnkps.onnx"
-hf_files["insightface/antelopev2/recognition"]="glintr100.onnx"
+hf_files["insightface/models/antelopev2"]="1k3d68.onnx 2d106det.onnx genderage.onnx scrfd_10g_bnkps.onnx glintr100.onnx"
 
 for folder in "${!hf_files[@]}"; do
   for filename in ${hf_files[$folder]}; do
@@ -121,6 +117,7 @@ hf_hub_download(
       echo "✅ Found (skipping): $folder/$filename"
     fi
   done
+
 done
 
 # ✅ Final fix for IPAdapterUnifiedLoader's ClipVision check
