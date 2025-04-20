@@ -77,7 +77,7 @@ echo "⬇️ Downloading model files..."
 
 declare -A hf_files
 hf_files["checkpoints"]="realisticVisionV60B1_v51HyperVAE.safetensors sd_xl_base_1.0.safetensors"
-hf_files["vae"]="sdxl_vae.safetensors"
+hf_files["vae"]="sdxl.vae.safetensors"
 hf_files["ipadapter"]="ip-adapter-plus-face_sdxl_vit-h.safetensors"
 hf_files["controlnet"]="OpenPoseXL2.safetensors"
 hf_files["upscale_models"]="RealESRGAN_x4plus.pth"
