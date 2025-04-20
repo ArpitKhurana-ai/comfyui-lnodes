@@ -2,7 +2,7 @@
 
 set -xe
 
-# ✅ Log everything to /app/startup.log
+# ✅ Log all output to a file
 exec > >(tee /app/startup.log) 2>&1
 
 echo "🟡 Starting ComfyUI LinkedIn Edition Setup..."
@@ -15,14 +15,14 @@ ln -fs /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && \
 echo "🔐 Authenticating Hugging Face..."
 huggingface-cli login --token "$HF_TOKEN" || true
 
-# Setup persistent model path
+# ✅ Persistent model path
 export COMFYUI_MODELS_PATH="/workspace/models"
 mkdir -p "$COMFYUI_MODELS_PATH"
 
 # Ensure we are in /workspace
 cd /workspace || exit 1
 
-# Clean broken ComfyUI if main.py missing
+# ✅ Clean up broken ComfyUI install
 if [ ! -f "/workspace/ComfyUI/main.py" ]; then
     echo "🧹 Cleaning broken ComfyUI (if exists)..."
     rm -rf /workspace/ComfyUI
@@ -31,33 +31,37 @@ fi
 
 cd /workspace/ComfyUI
 
-# Step 2: Sync custom nodes/workflows
-echo "📦 Syncing custom nodes/workflows..."
+# ✅ Sync custom nodes & workflows
+echo "📦 Syncing custom nodes and workflows..."
 rm -rf /tmp/lnodes
 git clone https://github.com/ArpitKhurana-ai/comfyui-lnodes.git /tmp/lnodes
 mkdir -p custom_nodes workflows
 cp -r /tmp/lnodes/custom_nodes/* custom_nodes/ || true
 cp -r /tmp/lnodes/workflows/* workflows/ || true
 
-# Step 3: Install ComfyUI Manager
+# ✅ Install ComfyUI Manager
 echo "🧠 Installing ComfyUI Manager..."
 rm -rf custom_nodes/ComfyUI-Manager
 git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-Manager
 
-# ✅ Step 4: Install extra Python dependencies
-echo "🧩 Installing Python dependencies..."
-pip install --quiet huggingface_hub onnxruntime-gpu insightface
+# ✅ Install ComfyUI Impact-Pack
+echo "🧩 Installing ComfyUI Impact-Pack..."
+rm -rf custom_nodes/ComfyUI-Impact-Pack
+git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git custom_nodes/ComfyUI-Impact-Pack
 
-# ✅ Step 5: Fix __init__.py if missing in Impact-Pack
-echo "🔧 Ensuring __init__.py for ComfyUI-Impact-Pack..."
+# ✅ Fix __init__.py in Impact-Pack
 impact_path="custom_nodes/ComfyUI-Impact-Pack"
 if [ -d "$impact_path" ] && [ ! -f "$impact_path/__init__.py" ]; then
     touch "$impact_path/__init__.py"
     echo "✅ __init__.py added to $impact_path"
 fi
 
-# Step 6: Create persistent model folders (outside ComfyUI)
-echo "📁 Creating model folders in $COMFYUI_MODELS_PATH"
+# ✅ Python dependencies
+echo "📦 Installing Python dependencies..."
+pip install --quiet huggingface_hub onnxruntime-gpu insightface
+
+# ✅ Create persistent model folders
+echo "📁 Creating model folders in $COMFYUI_MODELS_PATH..."
 folders=(
     "checkpoints"
     "clip"
@@ -75,8 +79,8 @@ for folder in "${folders[@]}"; do
     mkdir -p "$COMFYUI_MODELS_PATH/$folder"
 done
 
-# Step 7: Download models if not already present
-echo "⬇️ Downloading model files (only if missing)..."
+# ✅ Download model files if missing
+echo "⬇️ Syncing Hugging Face models..."
 
 declare -A hf_files
 hf_files["checkpoints"]="realisticVisionV60B1_v51HyperVAE.safetensors sd_xl_base_1.0.safetensors"
@@ -85,6 +89,7 @@ hf_files["ipadapter"]="ip-adapter-plus-face_sdxl_vit-h.safetensors"
 hf_files["controlnet"]="OpenPoseXL2.safetensors"
 hf_files["upscale_models"]="RealESRGAN_x4plus.pth"
 hf_files["clip"]="CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+hf_files["clip_vision"]="model.sdxl.safetensors"
 hf_files["instantid"]="ip-adapter.bin"
 hf_files["insightface/models/antelopev2"]="1k3d68.onnx 2d106det.onnx genderage.onnx glintr100.onnx scrfd_10g_bnkps.onnx"
 
@@ -108,7 +113,7 @@ hf_hub_download(
   done
 done
 
-# ✅ Final Launch
+# ✅ Launch ComfyUI
 echo "🚀 Launching ComfyUI on port 8188..."
 cd /workspace/ComfyUI
 python3 main.py --listen 0.0.0.0 --port 8188
