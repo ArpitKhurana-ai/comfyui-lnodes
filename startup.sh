@@ -76,7 +76,6 @@ folders=(
     "insightface/models/antelopev2"
     "instantid"
 )
-
 for folder in "${folders[@]}"; do
     mkdir -p "$COMFYUI_MODELS_PATH/$folder"
 done
@@ -98,7 +97,7 @@ for folder in "${!hf_files[@]}"; do
   for filename in ${hf_files[$folder]}; do
     local_path="$COMFYUI_MODELS_PATH/$folder/$filename"
     if [ ! -f "$local_path" ]; then
-      echo "⏬ Downloading $folder/$filename"
+      echo "⏳ Downloading $folder/$filename"
       python3 -c "
 import os
 from huggingface_hub import hf_hub_download
@@ -115,15 +114,15 @@ hf_hub_download(
   done
 done
 
-# ✅ Forcing download of ClipVision model to ensure IPAdapter+ FaceID works
-echo "🧠 Forcing download of ClipVision model (sdxl_vision_encoder.safetensors)..."
+# ✅ Final fix for IPAdapterUnifiedLoader's ClipVision check
+echo "🧠 Ensuring ClipVision model is in place..."
 python3 -c "
 import os
 from huggingface_hub import hf_hub_download
 hf_hub_download(
     repo_id='ArpitKhurana/comfyui-models',
-    filename='sdxl_vision_encoder.safetensors',
-    local_dir='/workspace/ComfyUI/models/clip_vision',
+    filename='clip_vision/sdxl_vision_encoder.safetensors',
+    local_dir='/workspace/models/clip_vision',
     repo_type='model',
     token=os.environ['HF_TOKEN']
 )"
