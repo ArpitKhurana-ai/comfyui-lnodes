@@ -91,7 +91,7 @@ hf_files["ipadapter"]="ip-adapter-plus-face_sdxl_vit-h.safetensors"
 hf_files["controlnet"]="OpenPoseXL2.safetensors"
 hf_files["upscale_models"]="RealESRGAN_x4plus.pth"
 hf_files["clip"]="CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
-hf_files["clip_vision"]="model.sdxl.safetensors"
+hf_files["clip_vision"]="sdxl_vision_encoder.safetensors"
 hf_files["instantid"]="ip-adapter.bin"
 hf_files["insightface/models/antelopev2"]="1k3d68.onnx 2d106det.onnx genderage.onnx glintr100.onnx scrfd_10g_bnkps.onnx"
 
