@@ -83,7 +83,6 @@ done
 
 # ✅ Download model files if missing
 echo "⬇️ Syncing Hugging Face models..."
-
 declare -A hf_files
 hf_files["checkpoints"]="realisticVisionV60B1_v51HyperVAE.safetensors sd_xl_base_1.0.safetensors"
 hf_files["vae"]="sdxl.vae.safetensors"
@@ -115,6 +114,19 @@ hf_hub_download(
     fi
   done
 done
+
+# ✅ Forcing download of ClipVision model to ComfyUI path
+echo "🧠 Forcing download of ClipVision model (sdxl_vision_encoder.safetensors)..."
+python3 -c "
+from huggingface_hub import hf_hub_download
+hf_hub_download(
+    repo_id='ArpitKhurana/comfyui-models',
+    filename='clip_vision/sdxl_vision_encoder.safetensors',
+    local_dir='/workspace/ComfyUI/models/clip_vision',
+    repo_type='model',
+    local_dir_use_symlinks=False,
+    token='$HF_TOKEN'
+)"
 
 # ✅ Launch ComfyUI
 echo "🚀 Launching ComfyUI on port 8188..."
