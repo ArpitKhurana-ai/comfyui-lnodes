@@ -2,6 +2,9 @@
 
 set -xe
 
+# ✅ Log everything to /app/startup.log
+exec > >(tee /app/startup.log) 2>&1
+
 echo "🟡 Starting ComfyUI LinkedIn Edition Setup..."
 
 # Set timezone
@@ -49,7 +52,6 @@ python3 -m pip install --quiet huggingface_hub
 
 # Step 5: Create model folders safely
 echo "📁 Creating model folders..."
-
 cd /workspace/ComfyUI/models
 
 folders=(
@@ -81,7 +83,7 @@ hf_files["controlnet"]="OpenPoseXL2.safetensors"
 hf_files["upscale_models"]="RealESRGAN_x4plus.pth"
 hf_files["clip"]="CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
 hf_files["instantid"]="ip-adapter.bin"
-hf_files["insightface/models/antelopev2"]="det_10g.onnx genderage.onnx glintr100.onnx w600k_r50.onnx"
+hf_files["insightface/models/antelopev2"]="1k3d68.onnx 2d106det.onnx genderage.onnx glintr100.onnx scrfd_10g_bnkps.onnx"
 
 for folder in "${!hf_files[@]}"; do
   for filename in ${hf_files[$folder]}; do
