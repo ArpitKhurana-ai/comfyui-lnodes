@@ -19,10 +19,6 @@ huggingface-cli login --token "$HF_TOKEN" || true
 export COMFYUI_MODELS_PATH="/workspace/models"
 mkdir -p "$COMFYUI_MODELS_PATH"
 
-# ✅ Ensure models show in UI — symlink persistent path into ComfyUI
-rm -rf /workspace/ComfyUI/models
-ln -s "$COMFYUI_MODELS_PATH" /workspace/ComfyUI/models
-
 # Ensure we are in /workspace
 cd /workspace || exit 1
 
@@ -32,6 +28,10 @@ if [ ! -f "/workspace/ComfyUI/main.py" ]; then
     rm -rf /workspace/ComfyUI
     git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
 fi
+
+# ✅ Symlink persistent models into ComfyUI's expected path (after cloning)
+rm -rf /workspace/ComfyUI/models
+ln -s "$COMFYUI_MODELS_PATH" /workspace/ComfyUI/models
 
 cd /workspace/ComfyUI
 
@@ -58,11 +58,12 @@ if [ -d "$impact_path" ] && [ ! -f "$impact_path/__init__.py" ]; then
     echo "✅ __init__.py added to $impact_path"
 fi
 
-# ✅ Python dependencies
+# ✅ Install Python dependencies (added piexif to fix Impact-Pack crash)
 echo "📦 Installing Python dependencies..."
 pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif
 
 # ✅ Create persistent model folders
+echo "📁 Creating model folders in $COMFYUI_MODELS_PATH..."
 folders=(
     "checkpoints"
     "clip"
@@ -80,7 +81,7 @@ for folder in "${folders[@]}"; do
     mkdir -p "$COMFYUI_MODELS_PATH/$folder"
 done
 
-# ✅ Download models (FIXED local_dir_use_symlinks)
+# ✅ Download model files if missing
 echo "⬇️ Syncing Hugging Face models..."
 
 declare -A hf_files
@@ -115,7 +116,7 @@ hf_hub_download(
   done
 done
 
-# ✅ Final Launch
+# ✅ Launch ComfyUI
 echo "🚀 Launching ComfyUI on port 8188..."
 cd /workspace/ComfyUI
 python3 main.py --listen 0.0.0.0 --port 8188
