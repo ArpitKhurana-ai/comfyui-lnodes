@@ -19,14 +19,14 @@ huggingface-cli login --token "$HF_TOKEN" || true
 export COMFYUI_MODELS_PATH="/workspace/models"
 mkdir -p "$COMFYUI_MODELS_PATH"
 
-# ✅ Symlink persistent models into ComfyUI's expected path
+# ✅ Ensure models show in UI — symlink persistent path into ComfyUI
 rm -rf /workspace/ComfyUI/models
 ln -s "$COMFYUI_MODELS_PATH" /workspace/ComfyUI/models
 
 # Ensure we are in /workspace
 cd /workspace || exit 1
 
-# ✅ Clean up broken ComfyUI install
+# ✅ Clean ComfyUI if broken
 if [ ! -f "/workspace/ComfyUI/main.py" ]; then
     echo "🧹 Cleaning broken ComfyUI (if exists)..."
     rm -rf /workspace/ComfyUI
@@ -44,12 +44,10 @@ cp -r /tmp/lnodes/custom_nodes/* custom_nodes/ || true
 cp -r /tmp/lnodes/workflows/* workflows/ || true
 
 # ✅ Install ComfyUI Manager
-echo "🧠 Installing ComfyUI Manager..."
 rm -rf custom_nodes/ComfyUI-Manager
 git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-Manager
 
 # ✅ Install ComfyUI Impact-Pack
-echo "🧩 Installing ComfyUI Impact-Pack..."
 rm -rf custom_nodes/ComfyUI-Impact-Pack
 git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git custom_nodes/ComfyUI-Impact-Pack
 
@@ -62,10 +60,9 @@ fi
 
 # ✅ Python dependencies
 echo "📦 Installing Python dependencies..."
-pip install --quiet huggingface_hub onnxruntime-gpu insightface
+pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif
 
 # ✅ Create persistent model folders
-echo "📁 Creating model folders in $COMFYUI_MODELS_PATH..."
 folders=(
     "checkpoints"
     "clip"
@@ -83,7 +80,7 @@ for folder in "${folders[@]}"; do
     mkdir -p "$COMFYUI_MODELS_PATH/$folder"
 done
 
-# ✅ Download model files if missing
+# ✅ Download models (FIXED local_dir_use_symlinks)
 echo "⬇️ Syncing Hugging Face models..."
 
 declare -A hf_files
@@ -107,8 +104,9 @@ from huggingface_hub import hf_hub_download
 hf_hub_download(
     repo_id='ArpitKhurana/comfyui-models',
     filename='$folder/$filename',
-    local_dir='$COMFYUI_MODELS_PATH',
+    local_dir='$COMFYUI_MODELS_PATH/$folder',
     repo_type='model',
+    local_dir_use_symlinks=False,
     token='$HF_TOKEN'
 )"
     else
@@ -117,7 +115,7 @@ hf_hub_download(
   done
 done
 
-# ✅ Launch ComfyUI
+# ✅ Final Launch
 echo "🚀 Launching ComfyUI on port 8188..."
 cd /workspace/ComfyUI
 python3 main.py --listen 0.0.0.0 --port 8188
