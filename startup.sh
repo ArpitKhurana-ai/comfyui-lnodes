@@ -122,8 +122,8 @@ import os
 from huggingface_hub import hf_hub_download
 hf_hub_download(
     repo_id='ArpitKhurana/comfyui-models',
-    filename='clip_vision/sdxl_vision_encoder.safetensors',
-    local_dir='/workspace/models/clip_vision',
+    filename='sdxl_vision_encoder.safetensors',
+    local_dir='/workspace/ComfyUI/models/clip_vision',
     repo_type='model',
     token=os.environ['HF_TOKEN']
 )"
