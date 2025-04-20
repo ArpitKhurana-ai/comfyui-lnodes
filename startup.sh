@@ -2,6 +2,9 @@
 
 set -xe
 
+# 🔁 Clean previous logs
+rm -rf /app/startup.log
+
 # ✅ Log all output to a file
 exec > >(tee /app/startup.log) 2>&1
 
@@ -58,9 +61,11 @@ if [ -d "$impact_path" ] && [ ! -f "$impact_path/__init__.py" ]; then
     echo "✅ __init__.py added to $impact_path"
 fi
 
-# ✅ Install Python dependencies
+# ✅ Upgrade pip & Install Python dependencies
+echo "⬆️ Upgrading pip..."
+pip install --upgrade pip
 echo "📦 Installing Python dependencies..."
-pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif
+pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif segment-anything
 
 # ✅ Create persistent model folders
 echo "📁 Creating model folders in $COMFYUI_MODELS_PATH..."
@@ -73,8 +78,10 @@ folders=(
     "upscale_models"
     "vae"
     "clip_vision"
-    "insightface/models/antelopev2"
     "instantid"
+    "insightface/antelopev2"
+    "insightface/antelopev2/detection"
+    "insightface/antelopev2/recognition"
 )
 for folder in "${folders[@]}"; do
     mkdir -p "$COMFYUI_MODELS_PATH/$folder"
@@ -91,7 +98,9 @@ hf_files["upscale_models"]="RealESRGAN_x4plus.pth"
 hf_files["clip"]="CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
 hf_files["clip_vision"]="sdxl_vision_encoder.safetensors"
 hf_files["instantid"]="ip-adapter.bin"
-hf_files["insightface/models/antelopev2"]="1k3d68.onnx 2d106det.onnx genderage.onnx glintr100.onnx scrfd_10g_bnkps.onnx"
+hf_files["insightface/antelopev2"]="1k3d68.onnx 2d106det.onnx genderage.onnx"
+hf_files["insightface/antelopev2/detection"]="scrfd_10g_bnkps.onnx"
+hf_files["insightface/antelopev2/recognition"]="glintr100.onnx"
 
 for folder in "${!hf_files[@]}"; do
   for filename in ${hf_files[$folder]}; do
