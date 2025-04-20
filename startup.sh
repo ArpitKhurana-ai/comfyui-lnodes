@@ -15,6 +15,10 @@ ln -fs /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && \
 echo "🔐 Authenticating Hugging Face..."
 huggingface-cli login --token "$HF_TOKEN" || true
 
+# Setup persistent model path
+export COMFYUI_MODELS_PATH="/workspace/models"
+mkdir -p "$COMFYUI_MODELS_PATH"
+
 # Ensure we are in /workspace
 cd /workspace || exit 1
 
@@ -23,12 +27,6 @@ if [ ! -f "/workspace/ComfyUI/main.py" ]; then
     echo "🧹 Cleaning broken ComfyUI (if exists)..."
     rm -rf /workspace/ComfyUI
     git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
-fi
-
-# Final check
-if [ ! -f "/workspace/ComfyUI/main.py" ]; then
-    echo "❌ main.py still missing. Aborting."
-    exit 1
 fi
 
 cd /workspace/ComfyUI
@@ -58,10 +56,8 @@ if [ -d "$impact_path" ] && [ ! -f "$impact_path/__init__.py" ]; then
     echo "✅ __init__.py added to $impact_path"
 fi
 
-# Step 6: Create model folders safely
-echo "📁 Creating model folders..."
-cd /workspace/ComfyUI/models
-
+# Step 6: Create persistent model folders (outside ComfyUI)
+echo "📁 Creating model folders in $COMFYUI_MODELS_PATH"
 folders=(
     "checkpoints"
     "clip"
@@ -76,12 +72,11 @@ folders=(
 )
 
 for folder in "${folders[@]}"; do
-    echo "📁 Making folder: /workspace/ComfyUI/models/$folder"
-    mkdir -p "/workspace/ComfyUI/models/$folder"
+    mkdir -p "$COMFYUI_MODELS_PATH/$folder"
 done
 
-# Step 7: Download models from Hugging Face
-echo "⬇️ Downloading model files..."
+# Step 7: Download models if not already present
+echo "⬇️ Downloading model files (only if missing)..."
 
 declare -A hf_files
 hf_files["checkpoints"]="realisticVisionV60B1_v51HyperVAE.safetensors sd_xl_base_1.0.safetensors"
@@ -95,16 +90,21 @@ hf_files["insightface/models/antelopev2"]="1k3d68.onnx 2d106det.onnx genderage.o
 
 for folder in "${!hf_files[@]}"; do
   for filename in ${hf_files[$folder]}; do
-    echo "⏬ Downloading $folder/$filename"
-    python3 -c "
+    local_path="$COMFYUI_MODELS_PATH/$folder/$filename"
+    if [ ! -f "$local_path" ]; then
+      echo "⏬ Downloading $folder/$filename"
+      python3 -c "
 from huggingface_hub import hf_hub_download
 hf_hub_download(
     repo_id='ArpitKhurana/comfyui-models',
     filename='$folder/$filename',
-    local_dir='/workspace/ComfyUI/models/$folder',
+    local_dir='$COMFYUI_MODELS_PATH/$folder',
     repo_type='model',
     token='$HF_TOKEN'
 )"
+    else
+      echo "✅ Found (skipping): $folder/$filename"
+    fi
   done
 done
 
