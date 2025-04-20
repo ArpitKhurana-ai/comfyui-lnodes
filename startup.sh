@@ -58,7 +58,7 @@ if [ -d "$impact_path" ] && [ ! -f "$impact_path/__init__.py" ]; then
     echo "✅ __init__.py added to $impact_path"
 fi
 
-# ✅ Install Python dependencies (added piexif to fix Impact-Pack crash)
+# ✅ Install Python dependencies
 echo "📦 Installing Python dependencies..."
 pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif
 
@@ -100,14 +100,14 @@ for folder in "${!hf_files[@]}"; do
     if [ ! -f "$local_path" ]; then
       echo "⏬ Downloading $folder/$filename"
       python3 -c "
+import os
 from huggingface_hub import hf_hub_download
 hf_hub_download(
     repo_id='ArpitKhurana/comfyui-models',
     filename='$folder/$filename',
     local_dir='$COMFYUI_MODELS_PATH/$folder',
     repo_type='model',
-    local_dir_use_symlinks=False,
-    token='$HF_TOKEN'
+    token=os.environ['HF_TOKEN']
 )"
     else
       echo "✅ Found (skipping): $folder/$filename"
@@ -115,17 +115,17 @@ hf_hub_download(
   done
 done
 
-# ✅ Forcing download of ClipVision model to ComfyUI path
+# ✅ Forcing download of ClipVision model to ensure IPAdapter+ FaceID works
 echo "🧠 Forcing download of ClipVision model (sdxl_vision_encoder.safetensors)..."
 python3 -c "
+import os
 from huggingface_hub import hf_hub_download
 hf_hub_download(
     repo_id='ArpitKhurana/comfyui-models',
     filename='clip_vision/sdxl_vision_encoder.safetensors',
-    local_dir='/workspace/ComfyUI/models/clip_vision',
+    local_dir='/workspace/models/clip_vision',
     repo_type='model',
-    local_dir_use_symlinks=False,
-    token='$HF_TOKEN'
+    token=os.environ['HF_TOKEN']
 )"
 
 # ✅ Launch ComfyUI
