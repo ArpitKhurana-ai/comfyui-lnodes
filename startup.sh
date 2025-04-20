@@ -107,7 +107,7 @@ from huggingface_hub import hf_hub_download
 hf_hub_download(
     repo_id='ArpitKhurana/comfyui-models',
     filename='$folder/$filename',
-    local_dir='$COMFYUI_MODELS_PATH/$folder',
+    local_dir='$COMFYUI_MODELS_PATH',
     repo_type='model',
     token='$HF_TOKEN'
 )"
