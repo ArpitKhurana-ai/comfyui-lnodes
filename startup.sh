@@ -19,6 +19,10 @@ huggingface-cli login --token "$HF_TOKEN" || true
 export COMFYUI_MODELS_PATH="/workspace/models"
 mkdir -p "$COMFYUI_MODELS_PATH"
 
+# ✅ Symlink persistent models into ComfyUI's expected path
+rm -rf /workspace/ComfyUI/models
+ln -s "$COMFYUI_MODELS_PATH" /workspace/ComfyUI/models
+
 # Ensure we are in /workspace
 cd /workspace || exit 1
 
