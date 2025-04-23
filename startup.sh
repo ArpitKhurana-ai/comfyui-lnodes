@@ -117,7 +117,6 @@ hf_hub_download(
       echo "✅ Found (skipping): $folder/$filename"
     fi
   done
-
 done
 
 # ✅ Final fix for IPAdapterUnifiedLoader's ClipVision check
@@ -132,6 +131,10 @@ hf_hub_download(
     repo_type='model',
     token=os.environ['HF_TOKEN']
 )"
+
+# ✅ Launch JupyterLab (background)
+echo "🚀 Launching JupyterLab on port 8888..."
+nohup /opt/conda/bin/jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root > /workspace/jupyter.log 2>&1 &
 
 # ✅ Launch ComfyUI
 echo "🚀 Launching ComfyUI on port 8188..."
