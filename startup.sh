@@ -64,6 +64,7 @@ fi
 # ✅ Upgrade pip & Install Python dependencies
 echo "⬆️ Upgrading pip..."
 pip install --upgrade pip
+
 echo "📦 Installing Python dependencies..."
 pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif segment-anything
 
@@ -83,6 +84,7 @@ folders=(
 )
 for folder in "${folders[@]}"; do
     mkdir -p "$COMFYUI_MODELS_PATH/$folder"
+    chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
 done
 
 # ✅ Download model files if missing
@@ -117,6 +119,7 @@ hf_hub_download(
       echo "✅ Found (skipping): $folder/$filename"
     fi
   done
+  chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
 done
 
 # ✅ Final fix for IPAdapterUnifiedLoader's ClipVision check
