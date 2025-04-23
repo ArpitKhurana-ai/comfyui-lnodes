@@ -132,11 +132,11 @@ hf_hub_download(
     token=os.environ['HF_TOKEN']
 )"
 
-# ✅ Launch JupyterLab (background)
-echo "🚀 Launching JupyterLab on port 8888..."
-nohup /opt/conda/bin/jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root > /workspace/jupyter.log 2>&1 &
-
 # ✅ Launch ComfyUI
 echo "🚀 Launching ComfyUI on port 8188..."
 cd /workspace/ComfyUI
-python3 main.py --listen 0.0.0.0 --port 8188
+nohup python3 main.py --listen 0.0.0.0 --port 8188 > /workspace/comfyui.log 2>&1 &
+
+# ✅ Launch JupyterLab
+echo "📓 Launching JupyterLab on port 8888..."
+nohup /opt/conda/bin/jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='e1224bcd5b82a0bf4153a47c3f7668fddd1310cc0422f35c' > /workspace/jupyter.log 2>&1 &
