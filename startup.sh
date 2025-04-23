@@ -135,11 +135,18 @@ hf_hub_download(
     token=os.environ['HF_TOKEN']
 )"
 
-# ✅ Launch ComfyUI
+# ✅ Launch ComfyUI (background)
 echo "🚀 Launching ComfyUI on port 8188..."
 cd /workspace/ComfyUI
-nohup python3 main.py --listen 0.0.0.0 --port 8188 > /workspace/comfyui.log 2>&1 &
+python3 main.py --listen 0.0.0.0 --port 8188 > /workspace/comfyui.log 2>&1 &
 
-# ✅ Launch JupyterLab
+# ✅ Launch JupyterLab (background)
 echo "📓 Launching JupyterLab on port 8888..."
-nohup /opt/conda/bin/jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='e1224bcd5b82a0bf4153a47c3f7668fddd1310cc0422f35c' > /workspace/jupyter.log 2>&1 &
+/opt/conda/bin/jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='e1224bcd5b82a0bf4153a47c3f7668fddd1310cc0422f35c' > /workspace/jupyter.log 2>&1 &
+
+# ✅ Show which ports are open (debug)
+netstat -tulpn | grep LISTEN || true
+
+# 🪵 Final fallback: Keep container alive and show logs
+echo "📄 Tailing logs to keep container alive..."
+tail -f /workspace/comfyui.log /workspace/jupyter.log
