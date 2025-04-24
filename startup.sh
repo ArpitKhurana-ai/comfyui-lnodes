@@ -92,9 +92,10 @@ for folder in "${!hf_files[@]}"; do
       python3 - <<EOF
 import os
 from huggingface_hub import hf_hub_download
+
 hf_hub_download(
     repo_id='ArpitKhurana/comfyui-models',
-    filename=os.path.join('$folder', '$filename'),
+    filename='$filename',
     local_dir=os.path.join(os.environ['COMFYUI_MODELS_PATH'], '$folder'),
     repo_type='model',
     token=os.environ.get('HF_TOKEN', None)
@@ -106,6 +107,7 @@ EOF
     chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
   done
 done
+
 
 # ✅ Launch ComfyUI
 cd /workspace/ComfyUI
