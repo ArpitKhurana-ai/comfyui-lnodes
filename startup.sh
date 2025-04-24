@@ -1,82 +1,61 @@
 #!/bin/bash
-
 set -xe
 
-# 🔁 Clean previous logs
+# 🔁 Clean logs
 rm -rf /app/startup.log
-
-# ✅ Log all output to a file
 exec > >(tee /app/startup.log) 2>&1
 
 echo "🟡 Starting ComfyUI LinkedIn Edition Setup..."
 
-# ✅ Set timezone
-ln -fs /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && \
-    dpkg-reconfigure -f noninteractive tzdata
+# Timezone
+ln -fs /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && dpkg-reconfigure -f noninteractive tzdata
 
-# ✅ Authenticate Hugging Face
+# HF login
 echo "🔐 Authenticating Hugging Face..."
 huggingface-cli login --token "$HF_TOKEN" || true
 
-# ✅ Setup persistent model path
+# Set model path
 export COMFYUI_MODELS_PATH="/workspace/models"
 mkdir -p "$COMFYUI_MODELS_PATH"
 
-# ✅ Navigate to /workspace
 cd /workspace || exit 1
 
-# ✅ Clone ComfyUI if missing
-if [ ! -f "/workspace/ComfyUI/main.py" ]; then
-    echo "🧹 Cloning fresh ComfyUI..."
-    rm -rf /workspace/ComfyUI
-    git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
+# Clone ComfyUI if missing
+if [ ! -f "ComfyUI/main.py" ]; then
+    echo "🧹 Cloning ComfyUI..."
+    rm -rf ComfyUI
+    git clone https://github.com/comfyanonymous/ComfyUI.git
 fi
 
-# ✅ Symlink models folder
-rm -rf /workspace/ComfyUI/models
-ln -s "$COMFYUI_MODELS_PATH" /workspace/ComfyUI/models
+rm -rf ComfyUI/models
+ln -s "$COMFYUI_MODELS_PATH" ComfyUI/models
+cd ComfyUI
 
-cd /workspace/ComfyUI
-
-# ✅ Sync custom nodes & workflows
-echo "📦 Syncing custom nodes and workflows..."
+# Custom nodes + workflows
+echo "📦 Syncing custom nodes..."
 rm -rf /tmp/lnodes
-NODE_REPO="https://github.com/ArpitKhurana-ai/comfyui-lnodes.git"
-git clone "$NODE_REPO" /tmp/lnodes
+git clone https://github.com/ArpitKhurana-ai/comfyui-lnodes.git /tmp/lnodes
 mkdir -p custom_nodes workflows
 cp -r /tmp/lnodes/custom_nodes/* custom_nodes/ || true
 cp -r /tmp/lnodes/workflows/* workflows/ || true
 
-# ✅ Install ComfyUI Manager
-rm -rf custom_nodes/ComfyUI-Manager
+# Manager + Impact Pack
+rm -rf custom_nodes/ComfyUI-Manager custom_nodes/ComfyUI-Impact-Pack
 git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-Manager
-
-# ✅ Install ComfyUI Impact-Pack
-rm -rf custom_nodes/ComfyUI-Impact-Pack
 git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git custom_nodes/ComfyUI-Impact-Pack
+touch custom_nodes/ComfyUI-Impact-Pack/__init__.py
 
-# ✅ Ensure __init__.py in Impact-Pack
-impact_path="custom_nodes/ComfyUI-Impact-Pack"
-if [ -d "$impact_path" ] && [ ! -f "$impact_path/__init__.py" ]; then
-    touch "$impact_path/__init__.py"
-fi
-
-# ✅ Upgrade pip and install Python dependencies
+# Python deps
 pip install --upgrade pip
 pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif segment-anything jupyterlab notebook
 
-# ✅ Create required model folders
-folders=(
-    "checkpoints" "clip" "configs" "controlnet" "ipadapter"
-    "upscale_models" "vae" "clip_vision" "instantid" "insightface/models/antelopev2"
-)
-for folder in "${folders[@]}"; do
-    mkdir -p "$COMFYUI_MODELS_PATH/$folder"
-    chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
+# Model folders
+for folder in checkpoints clip configs controlnet ipadapter upscale_models vae clip_vision instantid insightface/models/antelopev2; do
+  mkdir -p "$COMFYUI_MODELS_PATH/$folder"
+  chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
 done
 
-# ✅ Sync models from Hugging Face
-echo "⬇️ Syncing models from Hugging Face..."
+# Model downloads
 declare -A hf_files
 hf_files["checkpoints"]="realisticVisionV60B1_v51HyperVAE.safetensors sd_xl_base_1.0.safetensors"
 hf_files["vae"]="sdxl.vae.safetensors"
@@ -92,29 +71,27 @@ for folder in "${!hf_files[@]}"; do
   for filename in ${hf_files[$folder]}; do
     local_path="$COMFYUI_MODELS_PATH/$folder/$filename"
     if [ ! -f "$local_path" ]; then
-      echo "⏳ Downloading $folder/$filename"
+      echo "⬇️ Downloading $folder/$filename"
       python3 -c "
 import os
 from huggingface_hub import hf_hub_download
-hf_hub_download(
-  repo_id='ArpitKhurana/comfyui-models',
-  filename='$folder/$filename',
-  local_dir='$COMFYUI_MODELS_PATH/$folder',
-  repo_type='model',
-  token=os.environ['HF_TOKEN']
-)"
+hf_hub_download(repo_id='ArpitKhurana/comfyui-models',
+                filename='$folder/$filename',
+                local_dir='$COMFYUI_MODELS_PATH/$folder',
+                repo_type='model',
+                token=os.environ['HF_TOKEN'])"
     else
-      echo "✅ Found (skipping): $folder/$filename"
+      echo "✅ Found: $folder/$filename"
     fi
+    chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
   done
-  chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
 done
 
-# ✅ Launch ComfyUI
+# ✅ ComfyUI
 cd /workspace/ComfyUI
 python3 main.py --listen 0.0.0.0 --port 8188 > /workspace/comfyui.log 2>&1 &
 
-# ✅ Launch JupyterLab
+# ✅ JupyterLab
 python3 -m jupyter lab \
     --ip=0.0.0.0 \
     --port=8888 \
@@ -123,20 +100,18 @@ python3 -m jupyter lab \
     --NotebookApp.token='e1224bcd5b82a0bf4153a47c3f7668fddd1310cc0422f35c' \
     > /workspace/jupyter.log 2>&1 &
 
-# ✅ Install and launch FileBrowser
-echo "🌐 Installing FileBrowser..."
+# ✅ FileBrowser: Download, extract and launch
+cd /workspace
 wget https://github.com/filebrowser/filebrowser/releases/latest/download/linux-amd64-filebrowser.tar.gz -O fb.tar.gz
-mkdir -p /workspace/filebrowser-bin
-tar -xvzf fb.tar.gz -C /workspace/filebrowser-bin
-mv /workspace/filebrowser-bin/filebrowser /usr/local/bin/filebrowser
+tar -xvzf fb.tar.gz
+mv filebrowser /usr/local/bin/filebrowser
 chmod +x /usr/local/bin/filebrowser
-
 mkdir -p /workspace/filebrowser
-chmod -R 777 /workspace/filebrowser
 filebrowser -r /workspace -p 8080 -d /workspace/filebrowser/filebrowser.db > /workspace/filebrowser.log 2>&1 &
 
-# ✅ Show ports and tail logs
+# ✅ Show open ports
 netstat -tulpn | grep LISTEN || true
 
-echo "📄 Tailing logs..."
+# ✅ Final logs
+echo "📄 Tailing all logs..."
 tail -f /workspace/comfyui.log /workspace/jupyter.log /workspace/filebrowser.log
