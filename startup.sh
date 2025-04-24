@@ -7,27 +7,28 @@ exec > >(tee /app/startup.log) 2>&1
 
 echo "🟡 Starting ComfyUI LinkedIn Edition Setup..."
 
-# Timezone
-ln -fs /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && dpkg-reconfigure -f noninteractive tzdata
+# Set timezone
+ln -fs /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata
 
-# HF login
+# Hugging Face login
 echo "🔐 Authenticating Hugging Face..."
 huggingface-cli login --token "$HF_TOKEN" || true
 
-# Set model path
+# Set persistent model path
 export COMFYUI_MODELS_PATH="/workspace/models"
 mkdir -p "$COMFYUI_MODELS_PATH"
 
 cd /workspace || exit 1
 
-# Clone ComfyUI if missing
+# Clone ComfyUI if needed
 if [ ! -f "ComfyUI/main.py" ]; then
     echo "🧹 Cloning ComfyUI..."
     rm -rf ComfyUI
     git clone https://github.com/comfyanonymous/ComfyUI.git
 fi
 
-# Link persistent models folder
+# Link models folder
 rm -rf ComfyUI/models
 ln -s "$COMFYUI_MODELS_PATH" ComfyUI/models
 
@@ -42,7 +43,7 @@ fi
 
 cd ComfyUI
 
-# Custom nodes + workflows
+# Custom nodes & workflows
 echo "📦 Syncing custom nodes..."
 rm -rf /tmp/lnodes
 git clone https://github.com/ArpitKhurana-ai/comfyui-lnodes.git /tmp/lnodes
@@ -50,26 +51,26 @@ mkdir -p custom_nodes workflows
 cp -r /tmp/lnodes/custom_nodes/* custom_nodes/ || true
 cp -r /tmp/lnodes/workflows/* workflows/ || true
 
-# Manager + Impact Pack
+# Manager and Impact Pack
 rm -rf custom_nodes/ComfyUI-Manager custom_nodes/ComfyUI-Impact-Pack
 git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-Manager
 git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git custom_nodes/ComfyUI-Impact-Pack
 touch custom_nodes/ComfyUI-Impact-Pack/__init__.py
 
-# Python dependencies
+# Dependencies
 pip install --upgrade pip
 pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif segment-anything
 
-# Prepare model subfolders
+# Model subfolders
 for folder in checkpoints clip configs controlnet ipadapter upscale_models vae clip_vision instantid insightface/models/antelopev2; do
   mkdir -p "$COMFYUI_MODELS_PATH/$folder"
   chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
 done
 
-# 🧹 OPTIONAL CLEANUP: Remove incorrect nesting from previous runs
+# 🧹 Cleanup old nested clip_vision folder (if exists)
 rm -rf "$COMFYUI_MODELS_PATH/clip_vision/clip_vision"
 
-# ✅ Download required model files (no nesting error)
+# Model files to sync
 declare -A hf_files=(
   [checkpoints]="realisticVisionV60B1_v51HyperVAE.safetensors sd_xl_base_1.0.safetensors"
   [vae]="sdxl.vae.safetensors"
@@ -82,6 +83,7 @@ declare -A hf_files=(
   [insightface/models/antelopev2]="1k3d68.onnx 2d106det.onnx genderage.onnx scrfd_10g_bnkps.onnx glintr100.onnx"
 )
 
+# Sync models from HF
 for folder in "${!hf_files[@]}"; do
   for filename in ${hf_files[$folder]}; do
     local_path="$COMFYUI_MODELS_PATH/$folder/$filename"
@@ -90,10 +92,9 @@ for folder in "${!hf_files[@]}"; do
       python3 - <<EOF
 import os
 from huggingface_hub import hf_hub_download
-
 hf_hub_download(
     repo_id='ArpitKhurana/comfyui-models',
-    filename='$filename',
+    filename=os.path.join('$folder', '$filename'),
     local_dir=os.path.join(os.environ['COMFYUI_MODELS_PATH'], '$folder'),
     repo_type='model',
     token=os.environ.get('HF_TOKEN', None)
@@ -108,8 +109,7 @@ done
 
 # ✅ Launch ComfyUI
 cd /workspace/ComfyUI
-python3 main.py --listen 0.0.0.0 --port 8188 \
-  > /workspace/comfyui.log 2>&1 &
+python3 main.py --listen 0.0.0.0 --port 8188 > /workspace/comfyui.log 2>&1 &
 
 # ✅ Install and launch FileBrowser
 cd /workspace
