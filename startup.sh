@@ -109,6 +109,7 @@ chmod +x /usr/local/bin/filebrowser
 mkdir -p /workspace/filebrowser
 filebrowser -r /workspace -p 8080 -d /workspace/filebrowser/filebrowser.db > /workspace/filebrowser.log 2>&1 &
 
+
 # ✅ Show open ports
 netstat -tulpn | grep LISTEN || true
 
