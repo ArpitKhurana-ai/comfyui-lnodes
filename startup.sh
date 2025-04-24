@@ -89,10 +89,10 @@ import os
 from huggingface_hub import hf_hub_download
 hf_hub_download(
     repo_id='ArpitKhurana/comfyui-models',
-    filename='$folder/$filename',
-    local_dir='$COMFYUI_MODELS_PATH/$folder',
+    filename='$filename',
+    local_dir=os.path.join(os.environ['COMFYUI_MODELS_PATH'], '$folder'),
     repo_type='model',
-    token=os.environ['HF_TOKEN']
+    token=os.environ.get('HF_TOKEN', None)
 )
 EOF
     else
