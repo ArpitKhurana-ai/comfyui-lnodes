@@ -66,7 +66,10 @@ for folder in checkpoints clip configs controlnet ipadapter upscale_models vae c
   chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
 done
 
-# Download required model files (no more double‐nesting)
+# 🧹 OPTIONAL CLEANUP: Remove incorrect nesting from previous runs
+rm -rf "$COMFYUI_MODELS_PATH/clip_vision/clip_vision"
+
+# ✅ Download required model files (no nesting error)
 declare -A hf_files=(
   [checkpoints]="realisticVisionV60B1_v51HyperVAE.safetensors sd_xl_base_1.0.safetensors"
   [vae]="sdxl.vae.safetensors"
