@@ -100,14 +100,14 @@ python3 -m jupyter lab \
     --NotebookApp.token='e1224bcd5b82a0bf4153a47c3f7668fddd1310cc0422f35c' \
     > /workspace/jupyter.log 2>&1 &
 
-# ✅ FileBrowser: Download, extract and launch
+# ✅ Install and launch FileBrowser (corrected)
 cd /workspace
 wget https://github.com/filebrowser/filebrowser/releases/latest/download/linux-amd64-filebrowser.tar.gz -O fb.tar.gz
 tar -xvzf fb.tar.gz
-mv filebrowser /usr/local/bin/filebrowser
+mv linux-amd64-filebrowser/filebrowser /usr/local/bin/filebrowser
 chmod +x /usr/local/bin/filebrowser
 mkdir -p /workspace/filebrowser
-filebrowser -r /workspace -p 8080 -d /workspace/filebrowser/filebrowser.db > /workspace/filebrowser.log 2>&1 &
+/usr/local/bin/filebrowser -r /workspace -p 8080 -d /workspace/filebrowser/filebrowser.db > /workspace/filebrowser.log 2>&1 &
 
 
 # ✅ Show open ports
