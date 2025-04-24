@@ -30,6 +30,16 @@ fi
 # Link persistent models folder
 rm -rf ComfyUI/models
 ln -s "$COMFYUI_MODELS_PATH" ComfyUI/models
+
+# ✅ Symlink validation
+if [ ! -L /workspace/ComfyUI/models ]; then
+  echo "❌ Symlink creation failed for models folder."
+  ls -l /workspace/ComfyUI
+  exit 1
+else
+  echo "✅ Verified: /workspace/ComfyUI/models ➝ $COMFYUI_MODELS_PATH"
+fi
+
 cd ComfyUI
 
 # Custom nodes + workflows
@@ -48,7 +58,7 @@ touch custom_nodes/ComfyUI-Impact-Pack/__init__.py
 
 # Python dependencies
 pip install --upgrade pip
-pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif segment-anything jupyterlab notebook
+pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif segment-anything
 
 # Prepare model subfolders
 for folder in checkpoints clip configs controlnet ipadapter upscale_models vae clip_vision instantid insightface/models/antelopev2; do
@@ -97,30 +107,15 @@ cd /workspace/ComfyUI
 python3 main.py --listen 0.0.0.0 --port 8188 \
   > /workspace/comfyui.log 2>&1 &
 
-# ✅ Launch JupyterLab
-python3 -m jupyter lab \
-  --ip=0.0.0.0 \
-  --port=8888 \
-  --no-browser \
-  --allow-root \
-  --NotebookApp.token='e1224bcd5b82a0bf4153a47c3f7668fddd1310cc0422f35c' \
-  > /workspace/jupyter.log 2>&1 &
-
 # ✅ Install and launch FileBrowser
 cd /workspace
 wget https://github.com/filebrowser/filebrowser/releases/latest/download/linux-amd64-filebrowser.tar.gz -O fb.tar.gz
-
-# ignore ownership metadata so tar won’t error out
 tar --no-same-owner -xvzf fb.tar.gz
-
-# make and move the binary
 chmod +x filebrowser
 mv filebrowser /usr/local/bin/filebrowser
-
 mkdir -p /workspace/filebrowser
 chmod -R 777 /workspace/filebrowser
 
-# bind FileBrowser to all interfaces
 filebrowser \
   -r /workspace \
   --address 0.0.0.0 \
@@ -133,4 +128,4 @@ ss -tulpn | grep LISTEN || true
 
 # ✅ Tail logs
 echo "📄 Tailing all logs..."
-tail -f /workspace/comfyui.log /workspace/jupyter.log /workspace/filebrowser.log
+tail -f /workspace/comfyui.log /workspace/filebrowser.log
