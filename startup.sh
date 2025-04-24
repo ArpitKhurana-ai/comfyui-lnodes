@@ -27,6 +27,7 @@ if [ ! -f "ComfyUI/main.py" ]; then
     git clone https://github.com/comfyanonymous/ComfyUI.git
 fi
 
+# Link persistent models folder
 rm -rf ComfyUI/models
 ln -s "$COMFYUI_MODELS_PATH" ComfyUI/models
 cd ComfyUI
@@ -45,41 +46,45 @@ git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-M
 git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git custom_nodes/ComfyUI-Impact-Pack
 touch custom_nodes/ComfyUI-Impact-Pack/__init__.py
 
-# Python deps
+# Python dependencies
 pip install --upgrade pip
 pip install --quiet huggingface_hub onnxruntime-gpu insightface piexif segment-anything jupyterlab notebook
 
-# Model folders
+# Prepare model subfolders
 for folder in checkpoints clip configs controlnet ipadapter upscale_models vae clip_vision instantid insightface/models/antelopev2; do
   mkdir -p "$COMFYUI_MODELS_PATH/$folder"
   chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
 done
 
-# Model downloads
-declare -A hf_files
-hf_files["checkpoints"]="realisticVisionV60B1_v51HyperVAE.safetensors sd_xl_base_1.0.safetensors"
-hf_files["vae"]="sdxl.vae.safetensors"
-hf_files["ipadapter"]="ip-adapter-plus-face_sdxl_vit-h.safetensors"
-hf_files["controlnet"]="OpenPoseXL2.safetensors"
-hf_files["upscale_models"]="RealESRGAN_x4plus.pth"
-hf_files["clip"]="CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
-hf_files["clip_vision"]="sdxl_vision_encoder.safetensors"
-hf_files["instantid"]="ip-adapter.bin"
-hf_files["insightface/models/antelopev2"]="1k3d68.onnx 2d106det.onnx genderage.onnx scrfd_10g_bnkps.onnx glintr100.onnx"
+# Download required model files
+declare -A hf_files=(
+  [checkpoints]="realisticVisionV60B1_v51HyperVAE.safetensors sd_xl_base_1.0.safetensors"
+  [vae]="sdxl.vae.safetensors"
+  [ipadapter]="ip-adapter-plus-face_sdxl_vit-h.safetensors"
+  [controlnet]="OpenPoseXL2.safetensors"
+  [upscale_models]="RealESRGAN_x4plus.pth"
+  [clip]="CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+  [clip_vision]="sdxl_vision_encoder.safetensors"
+  [instantid]="ip-adapter.bin"
+  [insightface/models/antelopev2]="1k3d68.onnx 2d106det.onnx genderage.onnx scrfd_10g_bnkps.onnx glintr100.onnx"
+)
 
 for folder in "${!hf_files[@]}"; do
   for filename in ${hf_files[$folder]}; do
     local_path="$COMFYUI_MODELS_PATH/$folder/$filename"
     if [ ! -f "$local_path" ]; then
       echo "⬇️ Downloading $folder/$filename"
-      python3 -c "
+      python3 - <<EOF
 import os
 from huggingface_hub import hf_hub_download
-hf_hub_download(repo_id='ArpitKhurana/comfyui-models',
-                filename='$folder/$filename',
-                local_dir='$COMFYUI_MODELS_PATH/$folder',
-                repo_type='model',
-                token=os.environ['HF_TOKEN'])"
+hf_hub_download(
+    repo_id='ArpitKhurana/comfyui-models',
+    filename='$folder/$filename',
+    local_dir='$COMFYUI_MODELS_PATH/$folder',
+    repo_type='model',
+    token=os.environ['HF_TOKEN']
+)
+EOF
     else
       echo "✅ Found: $folder/$filename"
     fi
@@ -87,18 +92,19 @@ hf_hub_download(repo_id='ArpitKhurana/comfyui-models',
   done
 done
 
-# ✅ ComfyUI
+# ✅ Launch ComfyUI
 cd /workspace/ComfyUI
-python3 main.py --listen 0.0.0.0 --port 8188 > /workspace/comfyui.log 2>&1 &
+python3 main.py --listen 0.0.0.0 --port 8188 \
+  > /workspace/comfyui.log 2>&1 &
 
-# ✅ JupyterLab
+# ✅ Launch JupyterLab
 python3 -m jupyter lab \
-    --ip=0.0.0.0 \
-    --port=8888 \
-    --no-browser \
-    --allow-root \
-    --NotebookApp.token='e1224bcd5b82a0bf4153a47c3f7668fddd1310cc0422f35c' \
-    > /workspace/jupyter.log 2>&1 &
+  --ip=0.0.0.0 \
+  --port=8888 \
+  --no-browser \
+  --allow-root \
+  --NotebookApp.token='e1224bcd5b82a0bf4153a47c3f7668fddd1310cc0422f35c' \
+  > /workspace/jupyter.log 2>&1 &
 
 # ✅ Install and launch FileBrowser
 cd /workspace
@@ -107,19 +113,24 @@ wget https://github.com/filebrowser/filebrowser/releases/latest/download/linux-a
 # ignore ownership metadata so tar won’t error out
 tar --no-same-owner -xvzf fb.tar.gz
 
-# extract gives us 'filebrowser'
+# make and move the binary
 chmod +x filebrowser
 mv filebrowser /usr/local/bin/filebrowser
 
 mkdir -p /workspace/filebrowser
 chmod -R 777 /workspace/filebrowser
-filebrowser -r /workspace -p 8080 -d /workspace/filebrowser/filebrowser.db \
-    > /workspace/filebrowser.log 2>&1 &
 
+# bind FileBrowser to all interfaces
+filebrowser \
+  -r /workspace \
+  --address 0.0.0.0 \
+  -p 8080 \
+  -d /workspace/filebrowser/filebrowser.db \
+  > /workspace/filebrowser.log 2>&1 &
 
 # ✅ Show open ports
-netstat -tulpn | grep LISTEN || true
+ss -tulpn | grep LISTEN || true
 
-# ✅ Final logs
+# ✅ Tail logs
 echo "📄 Tailing all logs..."
 tail -f /workspace/comfyui.log /workspace/jupyter.log /workspace/filebrowser.log
