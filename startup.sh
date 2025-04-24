@@ -41,8 +41,6 @@ cd /workspace/ComfyUI
 # ✅ Sync custom nodes & workflows
 echo "📦 Syncing custom nodes and workflows..."
 rm -rf /tmp/lnodes
-
-# Replace this repo URL with yours
 NODE_REPO="https://github.com/ArpitKhurana-ai/comfyui-lnodes.git"
 git clone "$NODE_REPO" /tmp/lnodes
 mkdir -p custom_nodes workflows
@@ -127,10 +125,15 @@ python3 -m jupyter lab \
 
 # ✅ Install and launch FileBrowser
 echo "🌐 Installing FileBrowser..."
-curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
+wget https://github.com/filebrowser/filebrowser/releases/latest/download/linux-amd64-filebrowser.tar.gz -O fb.tar.gz
+mkdir -p /workspace/filebrowser-bin
+tar -xvzf fb.tar.gz -C /workspace/filebrowser-bin
+mv /workspace/filebrowser-bin/filebrowser /usr/local/bin/filebrowser
+chmod +x /usr/local/bin/filebrowser
+
 mkdir -p /workspace/filebrowser
 chmod -R 777 /workspace/filebrowser
-./filebrowser -r /workspace -p 8080 -d /workspace/filebrowser/filebrowser.db > /workspace/filebrowser.log 2>&1 &
+filebrowser -r /workspace -p 8080 -d /workspace/filebrowser/filebrowser.db > /workspace/filebrowser.log 2>&1 &
 
 # ✅ Show ports and tail logs
 netstat -tulpn | grep LISTEN || true
