@@ -66,7 +66,7 @@ for folder in checkpoints clip configs controlnet ipadapter upscale_models vae c
   chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
 done
 
-# Download required model files
+# Download required model files (no more double‐nesting)
 declare -A hf_files=(
   [checkpoints]="realisticVisionV60B1_v51HyperVAE.safetensors sd_xl_base_1.0.safetensors"
   [vae]="sdxl.vae.safetensors"
@@ -87,6 +87,7 @@ for folder in "${!hf_files[@]}"; do
       python3 - <<EOF
 import os
 from huggingface_hub import hf_hub_download
+
 hf_hub_download(
     repo_id='ArpitKhurana/comfyui-models',
     filename='$filename',
