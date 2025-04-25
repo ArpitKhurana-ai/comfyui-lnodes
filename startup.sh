@@ -83,32 +83,22 @@ declare -A hf_files=(
   [insightface/models/antelopev2]="1k3d68.onnx 2d106det.onnx genderage.onnx scrfd_10g_bnkps.onnx glintr100.onnx"
 )
 
-# Sync models from HF
-for folder in "${!hf_files[@]}"; do
-  for filename in ${hf_files[$folder]}; do
-    local_path="$COMFYUI_MODELS_PATH/$folder/$filename"
-    if [ ! -f "$local_path" ]; then
-      echo "⬇️ Downloading $folder/$filename"
-      python3 - <<EOF
+# ✅ One-shot Hugging Face download using snapshot_download
+echo "⬇️ Syncing all models using snapshot_download..."
+python3 - <<EOF
 import os
-from huggingface_hub import hf_hub_download
+from huggingface_hub import snapshot_download
 
-hf_hub_download(
+dst_dir = os.environ['COMFYUI_MODELS_PATH']
+snapshot_download(
     repo_id='ArpitKhurana/comfyui-models',
-    filename='$filename',
-    subfolder='$folder',
-    local_dir=os.path.join(os.environ['COMFYUI_MODELS_PATH'], '$folder'),
     repo_type='model',
+    local_dir=dst_dir,
+    local_dir_use_symlinks=False,
     token=os.environ.get('HF_TOKEN', None)
 )
 EOF
-    else
-      echo "✅ Found: $folder/$filename"
-    fi
-    chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
-  done
-done
-
+chmod -R 777 "$COMFYUI_MODELS_PATH"
 
 
 # ✅ Launch ComfyUI
