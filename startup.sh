@@ -70,19 +70,6 @@ done
 # 🧹 Cleanup old nested clip_vision folder (if exists)
 rm -rf "$COMFYUI_MODELS_PATH/clip_vision/clip_vision"
 
-# Model files to sync
-declare -A hf_files=(
-  [checkpoints]="realisticVisionV60B1_v51HyperVAE.safetensors sd_xl_base_1.0.safetensors"
-  [vae]="sdxl.vae.safetensors"
-  [ipadapter]="ip-adapter-plus-face_sdxl_vit-h.safetensors"
-  [controlnet]="OpenPoseXL2.safetensors"
-  [upscale_models]="RealESRGAN_x4plus.pth"
-  [clip]="CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
-  [clip_vision]="sdxl_vision_encoder.safetensors"
-  [instantid]="ip-adapter.bin"
-  [insightface/models/antelopev2]="1k3d68.onnx 2d106det.onnx genderage.onnx scrfd_10g_bnkps.onnx glintr100.onnx"
-)
-
 # ✅ One-shot Hugging Face download using snapshot_download
 echo "⬇️ Syncing all models using snapshot_download..."
 python3 - <<EOF
@@ -100,6 +87,29 @@ snapshot_download(
 EOF
 chmod -R 777 "$COMFYUI_MODELS_PATH"
 
+# ✅ Sanity Checks (fail fast if critical models are missing)
+echo "🔍 Checking critical model files..."
+
+check_model() {
+  local path="$COMFYUI_MODELS_PATH/$1"
+  if [ ! -f "$path" ]; then
+    echo "❌ ERROR: Required model not found: $path"
+    exit 1
+  else
+    echo "✅ Found: $path"
+  fi
+}
+
+check_model "checkpoints/sd_xl_base_1.0.safetensors"
+check_model "checkpoints/realisticVisionV60B1_v51HyperVAE.safetensors"
+check_model "vae/sdxl.vae.safetensors"
+check_model "instantid/ip-adapter.bin"
+check_model "controlnet/OpenPoseXL2.safetensors"
+check_model "insightface/models/antelopev2/1k3d68.onnx"
+check_model "insightface/models/antelopev2/glintr100.onnx"
+check_model "clip_vision/sdxl_vision_encoder.safetensors"
+
+echo "✅ All critical models are in place."
 
 # ✅ Launch ComfyUI
 cd /workspace/ComfyUI
