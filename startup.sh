@@ -7,7 +7,7 @@ exec > >(tee /app/startup.log) 2>&1
 
 echo "🟡 Starting ComfyUI LinkedIn Edition Setup..."
 
-# Set timezone
+# Timezone
 ln -fs /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata
 
@@ -67,10 +67,10 @@ for folder in checkpoints clip configs controlnet ipadapter upscale_models vae c
   chmod -R 777 "$COMFYUI_MODELS_PATH/$folder"
 done
 
-# 🧹 Cleanup old nested clip_vision folder (if exists)
+# 🧹 Cleanup nested clip_vision folder if exists
 rm -rf "$COMFYUI_MODELS_PATH/clip_vision/clip_vision"
 
-# ✅ One-shot Hugging Face download using snapshot_download
+# ✅ Download all models via snapshot_download
 echo "⬇️ Syncing all models using snapshot_download..."
 python3 - <<EOF
 import os
@@ -87,7 +87,7 @@ snapshot_download(
 EOF
 chmod -R 777 "$COMFYUI_MODELS_PATH"
 
-# ✅ Sanity Checks (fail fast if critical models are missing)
+# ✅ Sanity checks (critical model presence)
 echo "🔍 Checking critical model files..."
 
 check_model() {
@@ -107,7 +107,7 @@ check_model "instantid/ip-adapter.bin"
 check_model "controlnet/OpenPoseXL2.safetensors"
 check_model "insightface/models/antelopev2/1k3d68.onnx"
 check_model "insightface/models/antelopev2/glintr100.onnx"
-check_model "clip_vision/sdxl_vision_encoder.safetensors"
+check_model "clip_vision/CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
 
 echo "✅ All critical models are in place."
 
