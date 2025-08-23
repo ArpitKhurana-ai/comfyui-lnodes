@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ---- settings you can override via env ----
-ROOT="${ROOT:-/workspace/qwen}"
+ROOT="${ROOT:-/workspace}"
 COMFY="$ROOT/ComfyUI"
 PORT="${PORT:-8188}"
 
