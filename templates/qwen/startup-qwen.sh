@@ -51,18 +51,25 @@ else
   git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git "$COMFY"
 fi
 
-# ---- ComfyUI-Manager and preloaded workflow (Templates → Workflows) ----
-log "Step 1b: ensure ComfyUI-Manager + install workflow"
+# ---- ComfyUI-Manager and preloaded workflow (Manager → Workflow Gallery) ----
+log "Step 1b: ensure ComfyUI-Manager + install workflow for Manager gallery"
 CN_DIR="$COMFY/custom_nodes/ComfyUI-Manager"
 if [ -d "$CN_DIR/.git" ]; then
   git -C "$CN_DIR" pull || true
 else
   git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Manager "$CN_DIR"
 fi
-WF_DIR="$CN_DIR/workflows/Qwen"
-mkdir -p "$WF_DIR"
-curl -fsSL "$WORKFLOW_URL" -o "$WF_DIR/Qwen Image Edit.json"
-ls -lh "$WF_DIR" || true
+WF_DIR_MGR="$CN_DIR/workflows/Qwen"
+mkdir -p "$WF_DIR_MGR"
+curl -fsSL "$WORKFLOW_URL" -o "$WF_DIR_MGR/Qwen Image Edit.json"
+ls -lh "$WF_DIR_MGR" || true
+
+# ---- Also add the workflow to the left WORKFLOWS panel ----
+log "Step 1c: install workflow for left WORKFLOWS panel"
+WF_DIR_LEFT="$COMFY/workflows/Qwen"
+mkdir -p "$WF_DIR_LEFT"
+curl -fsSL "$WORKFLOW_URL" -o "$WF_DIR_LEFT/Qwen Image Edit.json"
+ls -lh "$WF_DIR_LEFT" || true
 
 # Model folders
 mkdir -p \
