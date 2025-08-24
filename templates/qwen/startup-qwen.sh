@@ -51,25 +51,35 @@ else
   git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git "$COMFY"
 fi
 
-# ---- ComfyUI-Manager and preloaded workflow (Manager → Workflow Gallery) ----
-log "Step 1b: ensure ComfyUI-Manager + install workflow for Manager gallery"
+# ---- ComfyUI-Manager and preloaded workflow ----
+log "Step 1b: ensure ComfyUI-Manager + install workflow"
 CN_DIR="$COMFY/custom_nodes/ComfyUI-Manager"
 if [ -d "$CN_DIR/.git" ]; then
   git -C "$CN_DIR" pull || true
 else
   git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Manager "$CN_DIR"
 fi
+
+# Download once to a temp file, then place it in ALL known workflow locations
+TMP_WF="$ROOT/qwen_workflow.json"
+curl -fsSL "$WORKFLOW_URL" -o "$TMP_WF"
+
+# a) Manager's local gallery
 WF_DIR_MGR="$CN_DIR/workflows/Qwen"
 mkdir -p "$WF_DIR_MGR"
-curl -fsSL "$WORKFLOW_URL" -o "$WF_DIR_MGR/Qwen Image Edit.json"
-ls -lh "$WF_DIR_MGR" || true
+cp -f "$TMP_WF" "$WF_DIR_MGR/Qwen Image Edit.json"
 
-# ---- Also add the workflow to the left WORKFLOWS panel ----
-log "Step 1c: install workflow for left WORKFLOWS panel"
-WF_DIR_LEFT="$COMFY/workflows/Qwen"
-mkdir -p "$WF_DIR_LEFT"
-curl -fsSL "$WORKFLOW_URL" -o "$WF_DIR_LEFT/Qwen Image Edit.json"
-ls -lh "$WF_DIR_LEFT" || true
+# b) Sidebar path used by recent ComfyUI builds
+WF_DIR_WEB="$COMFY/web/assets/workflows/Qwen"
+mkdir -p "$WF_DIR_WEB"
+cp -f "$TMP_WF" "$WF_DIR_WEB/Qwen Image Edit.json"
+
+# c) Sidebar/user path used by some builds
+WF_DIR_USER="$COMFY/user/default/workflows"
+mkdir -p "$WF_DIR_USER"
+cp -f "$TMP_WF" "$WF_DIR_USER/Qwen Image Edit.json"
+
+ls -lh "$WF_DIR_MGR" "$WF_DIR_WEB" "$WF_DIR_USER" || true
 
 # Model folders
 mkdir -p \
