@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT="${ROOT:-/workspace}"
 COMFY="$ROOT/ComfyUI"
 PORT="${PORT:-8188}"
+WORKFLOW_URL="${WORKFLOW_URL:-https://raw.githubusercontent.com/ArpitKhurana-ai/comfyui-lnodes/main/templates/qwen/workflows/qwen_image_edit.json}"
 
 log(){ echo -e "==> $*"; }
 
@@ -27,7 +28,7 @@ cat > "$ROOT/hold.html" <<HTML
 <h1>ComfyUI is preparing…</h1><p>Qwen weights are downloading. This will switch automatically.</p>
 HTML
 
-python3 - <<'PY' & 
+python3 - <<'PY' &
 import http.server, socketserver, os
 PORT=int(os.environ.get("PORT","8188"))
 ROOT=os.environ["ROOT"]
@@ -50,7 +51,20 @@ else
   git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git "$COMFY"
 fi
 
-# Folders
+# ---- ComfyUI-Manager and preloaded workflow (Templates → Workflows) ----
+log "Step 1b: ensure ComfyUI-Manager + install workflow"
+CN_DIR="$COMFY/custom_nodes/ComfyUI-Manager"
+if [ -d "$CN_DIR/.git" ]; then
+  git -C "$CN_DIR" pull || true
+else
+  git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Manager "$CN_DIR"
+fi
+WF_DIR="$CN_DIR/workflows/Qwen"
+mkdir -p "$WF_DIR"
+curl -fsSL "$WORKFLOW_URL" -o "$WF_DIR/Qwen Image Edit.json"
+ls -lh "$WF_DIR" || true
+
+# Model folders
 mkdir -p \
   "$COMFY/models/diffusion_models" \
   "$COMFY/models/text_encoders" \
