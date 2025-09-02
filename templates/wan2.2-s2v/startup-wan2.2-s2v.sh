@@ -6,25 +6,20 @@ ROOT="${ROOT:-/workspace}"
 COMFY="$ROOT/ComfyUI"
 PORT="${PORT:-8188}"
 
-# Official ComfyUI S2V JSON (override to your fork if you like)
+# Official ComfyUI S2V JSON (override to pin your own copy if you wish)
 WORKFLOW_URL="${WORKFLOW_URL:-https://raw.githubusercontent.com/Comfy-Org/workflow_templates/main/templates/video_wan2_2_14B_s2v.json}"
 
-# Choose model variant: fp8 (less VRAM) or bf16 (higher quality, heavier)
+# Model precision variant for diffusion weights
 WAN_VARIANT="${WAN_VARIANT:-fp8}"     # fp8 | bf16
-
-# Optional Lightning LoRA (speed → ~4 steps; some quality tradeoff)
-WAN_DOWNLOAD_LIGHTNING="${WAN_DOWNLOAD_LIGHTNING:-0}"   # 0|1
-WAN_LIGHTNING_VARIANT="${WAN_LIGHTNING_VARIANT:-high_noise}"  # high_noise|low_noise
 
 # Optional: HF token for faster/ratelimit-proof downloads
 HF_TOKEN="${HF_TOKEN:-}"
 
 # ========= Helpers =========
 log(){ echo "==> $*"; }
-
 auth_header(){ if [[ -n "$HF_TOKEN" ]]; then echo "Authorization: Bearer $HF_TOKEN"; fi; }
 
-# Resumable curl (works on older curl too)
+# resumable curl (works on older curl too)
 fetch () {
   local url="$1" out="$2"
   if [[ -s "$out" ]]; then log "exists: $(basename "$out")"; ls -lh "$out"; return 0; fi
@@ -34,7 +29,7 @@ fetch () {
   ls -lh "$out"
 }
 
-# Try a list of mirrors until one succeeds
+# Try mirrors until one succeeds
 fetch_mirror () {
   local out="$1"; shift
   for u in "$@"; do
@@ -44,6 +39,8 @@ fetch_mirror () {
   log "ERROR: all mirrors failed for $(basename "$out")"; return 9
 }
 
+py(){ command -v python3 >/dev/null 2>&1 && echo python3 || echo /opt/conda/bin/python3; }
+
 # ========= Step 0: prepare & sanity checks =========
 log "Step 0: prepare dirs and GPU check"
 mkdir -p "$ROOT"
@@ -52,7 +49,8 @@ mkdir -p "$ROOT"
 if ! command -v nvidia-smi >/dev/null 2>&1; then
   echo "ERROR: GPU driver not visible. Exiting."; exit 2
 fi
-python3 - <<'PY'
+
+"$(py)" - <<'PY'
 import torch, sys
 sys.exit(0 if torch.cuda.is_available() else 3)
 PY
@@ -65,7 +63,7 @@ cat > "$ROOT/hold.html" <<HTML
 <p>Wan 2.2 S2V weights are downloading. This will switch automatically.</p>
 HTML
 
-python3 - <<'PY' &
+"$(py)" - <<'PY' &
 import http.server, socketserver, os
 PORT=int(os.environ.get("PORT","8188")); ROOT=os.environ["ROOT"]
 class H(http.server.SimpleHTTPRequestHandler):
@@ -86,17 +84,22 @@ else
   git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git "$COMFY"
 fi
 
-# ========= Step 1b: install workflow into sidebars =========
+# ========= Step 1c: install ComfyUI Python deps (frontend + DB) =========
+log "Step 1c: install ComfyUI Python deps (frontend + DB)"
+"$(py)" -m pip install -U pip wheel setuptools
+"$(py)" -m pip install -U -r "$COMFY/requirements.txt"
+# New split-frontend + Alembic DB requirements
+"$(py)" -m pip install -U 'comfyui_frontend_package>=1.25.11' alembic pydantic-settings
+
+# ========= Step 1b: install workflow(s) into sidebars =========
 log "Step 1b: install S2V workflow(s)"
 WF_TMP="$COMFY/Wan2.2_S2V.json"
 curl -fsSL "$WORKFLOW_URL" -o "$WF_TMP"
 
-# Built-in gallery (left sidebar)
-install -Dm644 "$WF_TMP" "$COMFY/web/assets/workflows/Wan/Wan2.2 14B S2V (Audio+Image→Video).json"
-# User workflows (also shown in sidebar)
-install -Dm644 "$WF_TMP" "$COMFY/user/default/workflows/Wan2.2 14B S2V (Audio+Image→Video).json"
-# Manager gallery (best-effort)
-install -Dm644 "$WF_TMP" "$COMFY/custom_nodes/ComfyUI-Manager/workflows/Wan/Wan2.2 14B S2V (Audio+Image→Video).json" || true
+# Use a filename without special unicode chars to avoid FS issues
+install -Dm644 "$WF_TMP" "$COMFY/web/assets/workflows/Wan/Wan2.2_14B_S2V_Audio_Image_to_Video.json"
+install -Dm644 "$WF_TMP" "$COMFY/user/default/workflows/Wan2.2_14B_S2V_Audio_Image_to_Video.json"
+install -Dm644 "$WF_TMP" "$COMFY/custom_nodes/ComfyUI-Manager/workflows/Wan/Wan2.2_14B_S2V_Audio_Image_to_Video.json" || true
 
 # ========= Step 2: models =========
 log "Step 2: prepare model folders"
@@ -109,7 +112,7 @@ mkdir -p \
 
 export HF_HUB_ENABLE_HF_TRANSFER="${HF_HUB_ENABLE_HF_TRANSFER:-1}"
 
-# ---- diffusion model (pick one variant) ----
+# ---- diffusion model (pick one by env) ----
 case "$WAN_VARIANT" in
   fp8)  WAN_DIFF_NAME="wan2.2_s2v_14B_fp8_scaled.safetensors" ;;
   bf16) WAN_DIFF_NAME="wan2.2_s2v_14B_bf16.safetensors" ;;
@@ -132,16 +135,12 @@ fetch_mirror "$COMFY/models/vae/wan_2.1_vae.safetensors" \
 fetch_mirror "$COMFY/models/audio_encoders/wav2vec2_large_english_fp16.safetensors" \
   "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/audio_encoders/wav2vec2_large_english_fp16.safetensors"
 
-# ---- Optional Lightning LoRA ----
-if [[ "$WAN_DOWNLOAD_LIGHTNING" == "1" ]]; then
-  case "$WAN_LIGHTNING_VARIANT" in
-    high_noise) LORA_NAME="wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors" ;;
-    low_noise)  LORA_NAME="wan2.2_t2v_lightx2v_4steps_lora_v1.1_low_noise.safetensors" ;;
-    *) echo "Invalid WAN_LIGHTNING_VARIANT=$WAN_LIGHTNING_VARIANT"; exit 11 ;;
-  esac
-  fetch_mirror "$COMFY/models/loras/$LORA_NAME" \
-    "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/loras/$LORA_NAME"
-fi
+# ---- Lightning LoRAs — ALWAYS install (both variants) ----
+fetch_mirror "$COMFY/models/loras/wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors" \
+  "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/loras/wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors"
+
+fetch_mirror "$COMFY/models/loras/wan2.2_t2v_lightx2v_4steps_lora_v1.1_low_noise.safetensors" \
+  "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/loras/wan2.2_t2v_lightx2v_4steps_lora_v1.1_low_noise.safetensors"
 
 # ========= Step 3: launch =========
 log "Step 3: launch ComfyUI"
@@ -151,7 +150,7 @@ fi
 
 kill "$HOLD_PID" || true
 cd "$COMFY"
-python3 main.py --listen 0.0.0.0 --port "$PORT" &
+"$(py)" "$COMFY/main.py" --listen 0.0.0.0 --port "$PORT" &
 APP_PID=$!
 
 # Readiness probe → print proxy URL
