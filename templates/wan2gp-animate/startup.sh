@@ -9,7 +9,7 @@ export WORKDIR="/workspace"
 export APP_DIR="$WORKDIR/Wan2GP"
 export VENV_DIR="$WORKDIR/venv-wan2gp"
 
-# Caches/persistance
+# Caches/persistence
 export HF_HOME="${HF_HOME:-$WORKDIR/hf-home}"
 export HUGGINGFACE_HUB_CACHE="${HUGGINGFACE_HUB_CACHE:-$WORKDIR/hf-cache}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$WORKDIR/.cache}"
@@ -22,13 +22,13 @@ export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:128
 export WAN2GP_ONNX_CUDA="${WAN2GP_ONNX_CUDA:-0}"     # keep default CPU for ONNX bits; set 1 later if stable
 export WAN2GP_ONNX_VER="${WAN2GP_ONNX_VER:-1.20.1}"
 export UVICORN_TIMEOUT_KEEP_ALIVE="${UVICORN_TIMEOUT_KEEP_ALIVE:-75}"
-export TOKENIZERS_PARALLELISM="false"                # avoids rare deadlocks
-export HF_HUB_ENABLE_HF_TRANSFER="1"                 # faster model pulls where supported
+export TOKENIZERS_PARALLELISM="false"
+export HF_HUB_ENABLE_HF_TRANSFER="1"
 
 LOG_FILE="$WORKDIR/wan2gp.log"
 mkdir -p "$WORKDIR" && : > "$LOG_FILE"
 
-# Detect pathological Docker memory caps early (you hit 488MiB OOM loops before)
+# Detect pathological Docker memory caps early
 detect_mem_cap() {
   local lim="max"
   if [ -f /sys/fs/cgroup/memory.max ]; then
@@ -36,7 +36,6 @@ detect_mem_cap() {
   elif [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
     lim=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes || echo 9223372036854771712)
   fi
-  # ~512MiB
   if [[ "$lim" =~ ^(5|53|536870912)$ ]]; then
     echo "[WARN] Container memory appears capped (~512MiB). Clear Docker Args memory limits in Template." | tee -a "$LOG_FILE"
   fi
@@ -46,12 +45,12 @@ detect_mem_cap
 # ---------- System deps ----------
 export DEBIAN_FRONTEND=noninteractive
 if command -v apt-get >/dev/null 2>&1; then
-  # small, reliable base; no bloat
   apt-get update -y >>"$LOG_FILE" 2>&1 || true
   apt-get install -y --no-install-recommends \
     git git-lfs curl ca-certificates ffmpeg \
     build-essential python3-dev pkg-config \
-    libgl1 libglib2.0-0 >>"$LOG_FILE" 2>&1 || true
+    libgl1 libglib2.0-0 libsm6 libxrender1 libxext6 libsndfile1 \
+    iproute2 net-tools >>"$LOG_FILE" 2>&1 || true
   git lfs install >>"$LOG_FILE" 2>&1 || true
 fi
 
@@ -77,7 +76,11 @@ python3 -m venv "$VENV_DIR" 2>/dev/null || true
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
 python -V | tee -a "$LOG_FILE"
-pip install -U pip wheel setuptools --no-cache-dir >>"$LOG_FILE" 2>&1
+
+# Toolchain for reliable PEP517 builds (pin a bit to avoid churn)
+pip install -U pip wheel "setuptools<75" "Cython<3.2" ninja --no-cache-dir >>"$LOG_FILE" 2>&1
+# Let packages reuse current env for build deps (diffq needs Cython)
+export PIP_NO_BUILD_ISOLATION=1
 
 GPU_NAME="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -n1 || echo unknown)"
 echo "GPU: $GPU_NAME" | tee -a "$LOG_FILE"
@@ -93,12 +96,16 @@ else
     torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 >>"$LOG_FILE" 2>&1
 fi
 
+# ---------- Preinstall sticky wheels ----------
+# diffq needs Cython visible; do it upfront to avoid metadata build failure
+pip install --no-cache-dir --prefer-binary diffq==0.2.4 >>"$LOG_FILE" 2>&1 || true
+
 # ---------- Python deps (prefer wheels, retry once) ----------
 echo "[PIP] requirements…" | tee -a "$LOG_FILE"
-pip install --upgrade --prefer-binary --no-build-isolation \
+pip install --upgrade --prefer-binary \
   -r "$APP_DIR/requirements.txt" >>"$LOG_FILE" 2>&1 || {
   echo "[PIP] retrying…" | tee -a "$LOG_FILE"
-  pip install --upgrade --prefer-binary --no-build-isolation \
+  pip install --upgrade --prefer-binary \
     -r "$APP_DIR/requirements.txt" >>"$LOG_FILE" 2>&1 || true
 }
 
