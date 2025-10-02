@@ -40,9 +40,27 @@ detect_mem_cap(){
   elif [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
     lim=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes || echo 9223372036854771712)
   fi
-  # ~512MiB detection
+  log "[MEM] cgroup memory.max = $lim"
+  # Fail fast if the pod was booted with a tiny cap (scheduler glitch on Pods)
+  if [ "$lim" != "max" ] && [ "$lim" -lt 1073741824 ]; then
+    local mib=$(( lim/1024/1024 ))
+    log "[FATAL] Pod RAM is capped at ${mib} MiB. This is not a user setting for RunPod Pods."
+    log "        Please stop this pod and deploy a NEW pod (preferably a different region)."
+    exit 1
+  fi
+  # ~512MiB detection (extra message if someone scans logs later)
   if [[ "$lim" =~ ^(5|53|536870912)$ ]]; then
-    log "[WARN] Container memory appears capped (~512MiB). Remove any --memory=512m Docker Arg in your Template. Add --shm-size 2g."
+    log "[WARN] Container memory appears capped (~512MiB)."
+  fi
+}
+
+ensure_shm(){
+  # Grow /dev/shm from default 64M to 2G for OpenCV/ffmpeg/tmp stability
+  local shm_sz=$(df -m /dev/shm 2>/dev/null | awk 'NR==2{print $2}')
+  if [ -n "$shm_sz" ] && [ "$shm_sz" -lt 512 ]; then
+    log "[SHM] /dev/shm is ${shm_sz}M → remounting to 2048M"
+    mount -o remount,size=2g /dev/shm 2>/dev/null || \
+    (umount /dev/shm && mount -t tmpfs -o size=2g tmpfs /dev/shm) || true
   fi
 }
 
@@ -53,7 +71,6 @@ free_port(){
   elif command -v lsof >/dev/null 2>&1; then
     lsof -iTCP:"$WAN2GP_PORT" -sTCP:LISTEN -t 2>/dev/null | xargs -r kill -9 || true
   else
-    # best effort
     fuser -k "${WAN2GP_PORT}/tcp" 2>/dev/null || true
   fi
   sleep 1
@@ -82,8 +99,12 @@ print("OK")
 PY
 }
 
+# Basic ulimit to avoid EMFILE on heavy installs
+ulimit -n 1048576 || true
+
 # ------------- Bootstrap (first run only) -------------
 detect_mem_cap
+ensure_shm
 
 export DEBIAN_FRONTEND=noninteractive
 if [ ! -f "$BOOT_OK" ] || [ "${WAN2GP_FORCE_SETUP:-0}" = "1" ]; then
