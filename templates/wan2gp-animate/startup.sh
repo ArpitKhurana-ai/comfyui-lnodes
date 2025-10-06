@@ -23,7 +23,8 @@ export WAN2GP_ONNX_CUDA="${WAN2GP_ONNX_CUDA:-0}"   # set 1 later if you want to 
 export WAN2GP_ONNX_VER="${WAN2GP_ONNX_VER:-1.20.1}"
 export UVICORN_TIMEOUT_KEEP_ALIVE="${UVICORN_TIMEOUT_KEEP_ALIVE:-75}"
 export TOKENIZERS_PARALLELISM="false"
-export HF_HUB_ENABLE_HF_TRANSFER="1"
+# We'll enable fast downloads only after we confirm the wheel exists (see ensure_hf_transfer)
+export HF_HUB_ENABLE_HF_TRANSFER="${HF_HUB_ENABLE_HF_TRANSFER:-1}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 
 LOG_FILE="$WORKDIR/wan2gp.log"
@@ -41,22 +42,19 @@ detect_mem_cap(){
     lim=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes || echo 9223372036854771712)
   fi
   log "[MEM] cgroup memory.max = $lim"
-  # Fail fast if the pod was booted with a tiny cap (scheduler glitch on Pods)
   if [ "$lim" != "max" ] && [ "$lim" -lt 1073741824 ]; then
     local mib=$(( lim/1024/1024 ))
-    log "[FATAL] Pod RAM is capped at ${mib} MiB. This is not a user setting for RunPod Pods."
-    log "        Please stop this pod and deploy a NEW pod (preferably a different region)."
+    log "[FATAL] Pod RAM is capped at ${mib} MiB. Please stop this pod and deploy a NEW pod (different region often helps)."
     exit 1
   fi
-  # ~512MiB detection (extra message if someone scans logs later)
   if [[ "$lim" =~ ^(5|53|536870912)$ ]]; then
     log "[WARN] Container memory appears capped (~512MiB)."
   fi
 }
 
 ensure_shm(){
-  # Grow /dev/shm from default 64M to 2G for OpenCV/ffmpeg/tmp stability
-  local shm_sz=$(df -m /dev/shm 2>/dev/null | awk 'NR==2{print $2}')
+  local shm_sz
+  shm_sz=$(df -m /dev/shm 2>/dev/null | awk 'NR==2{print $2}')
   if [ -n "$shm_sz" ] && [ "$shm_sz" -lt 512 ]; then
     log "[SHM] /dev/shm is ${shm_sz}M → remounting to 2048M"
     mount -o remount,size=2g /dev/shm 2>/dev/null || \
@@ -76,9 +74,7 @@ free_port(){
   sleep 1
 }
 
-gpu_name(){
-  nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -n1 || echo unknown
-}
+gpu_name(){ nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -n1 || echo unknown; }
 
 has_torch(){
   python - <<'PY'
@@ -99,6 +95,27 @@ print("OK")
 PY
 }
 
+ensure_hf_transfer(){
+  # Install/verify hf_transfer and a recent huggingface_hub.
+  # If verification fails, disable fast downloads to avoid UI errors.
+  log "[HF] Ensuring fast-download support (hf_transfer)…"
+  pip install --upgrade --prefer-binary \
+    "huggingface_hub>=0.25.2" "hf_transfer>=0.1.6" >>"$LOG_FILE" 2>&1 || true
+
+  if python - <<'PY'
+import importlib, pkgutil, sys
+ok = pkgutil.find_loader("hf_transfer") is not None
+sys.exit(0 if ok else 1)
+PY
+  then
+    export HF_HUB_ENABLE_HF_TRANSFER=1
+    log "[HF] hf_transfer available ✔  (HF_HUB_ENABLE_HF_TRANSFER=1)"
+  else
+    export HF_HUB_ENABLE_HF_TRANSFER=0
+    log "[HF] hf_transfer NOT available → falling back (HF_HUB_ENABLE_HF_TRANSFER=0)."
+  fi
+}
+
 # Basic ulimit to avoid EMFILE on heavy installs
 ulimit -n 1048576 || true
 
@@ -110,7 +127,6 @@ export DEBIAN_FRONTEND=noninteractive
 if [ ! -f "$BOOT_OK" ] || [ "${WAN2GP_FORCE_SETUP:-0}" = "1" ]; then
   log "[BOOTSTRAP] First-time setup…"
 
-  # System deps (full set incl. OpenCV/audio + networking tools)
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update -y >>"$LOG_FILE" 2>&1 || true
     apt-get install -y --no-install-recommends \
@@ -121,11 +137,9 @@ if [ ! -f "$BOOT_OK" ] || [ "${WAN2GP_FORCE_SETUP:-0}" = "1" ]; then
     git lfs install >>"$LOG_FILE" 2>&1 || true
   fi
 
-  # Folders
   mkdir -p "$HF_HOME" "$HUGGINGFACE_HUB_CACHE" "$XDG_CACHE_HOME" \
            "$WAN2GP_SETTINGS_DIR" "$WAN2GP_OUTPUTS_DIR" "$PIP_CACHE_DIR"
 
-  # Fetch / update app
   if [ ! -d "$APP_DIR/.git" ]; then
     log "[CLONE] Wan2GP…"
     git clone --depth=1 https://github.com/deepbeepmeep/Wan2GP.git "$APP_DIR" >>"$LOG_FILE" 2>&1
@@ -138,17 +152,14 @@ if [ ! -f "$BOOT_OK" ] || [ "${WAN2GP_FORCE_SETUP:-0}" = "1" ]; then
     git -C "$APP_DIR" checkout "$WAN2GP_COMMIT" >>"$LOG_FILE" 2>&1 || true
   fi
 
-  # Python / venv
   python3 -m venv "$VENV_DIR" 2>/dev/null || true
   # shellcheck disable=SC1091
   source "$VENV_DIR/bin/activate"
   python -V | tee -a "$LOG_FILE"
 
-  # Build toolchain (pin to avoid PEP517 churn) + allow in-env build deps
   pip install -U pip wheel "setuptools<75" "Cython<3.2" ninja --no-cache-dir >>"$LOG_FILE" 2>&1
   export PIP_NO_BUILD_ISOLATION=1
 
-  # Torch (install only if missing)
   GPU="$(gpu_name)"; log "GPU: $GPU"
   if ! has_torch >/dev/null 2>&1; then
     if echo "$GPU" | grep -Eiq '50|Blackwell'; then
@@ -167,14 +178,16 @@ if [ ! -f "$BOOT_OK" ] || [ "${WAN2GP_FORCE_SETUP:-0}" = "1" ]; then
   # Preinstall sticky wheel to avoid Cython metadata failure later
   pip install --no-cache-dir --prefer-binary diffq==0.2.4 >>"$LOG_FILE" 2>&1 || true
 
-  # Requirements (prefer wheels; one retry)
+  # >>> NEW: make sure hf fast-download is ready (or gracefully disable)
+  ensure_hf_transfer
+  # <<<
+
   log "[PIP] requirements…"
   pip install --upgrade --prefer-binary -r "$APP_DIR/requirements.txt" >>"$LOG_FILE" 2>&1 || {
     log "[PIP] retrying…"
     pip install --upgrade --prefer-binary -r "$APP_DIR/requirements.txt" >>"$LOG_FILE" 2>&1 || true
   }
 
-  # ONNX toggle
   if [ "$WAN2GP_ONNX_CUDA" = "1" ]; then
     log "[ONNX] GPU ${WAN2GP_ONNX_VER}"
     pip install --upgrade --no-deps "onnxruntime-gpu==${WAN2GP_ONNX_VER}" >>"$LOG_FILE" 2>&1 || true
@@ -183,13 +196,11 @@ if [ ! -f "$BOOT_OK" ] || [ "${WAN2GP_FORCE_SETUP:-0}" = "1" ]; then
     export ORT_DISABLE_CUDA=1
   fi
 
-  # Persist outputs
   if [ -d "$APP_DIR/outputs" ] && [ ! -L "$APP_DIR/outputs" ]; then
     rm -rf "$APP_DIR/outputs"
     ln -s "$WAN2GP_OUTPUTS_DIR" "$APP_DIR/outputs"
   fi
 
-  # Sanity imports (catches mmgp/diffusers/gradio issues before we loop)
   if sanity_imports >/dev/null 2>&1; then
     touch "$BOOT_OK"
     log "[BOOTSTRAP] Done ✔  (sentinel: $BOOT_OK)"
@@ -197,14 +208,15 @@ if [ ! -f "$BOOT_OK" ] || [ "${WAN2GP_FORCE_SETUP:-0}" = "1" ]; then
     log "[BOOTSTRAP] Sanity import failed — last 200 lines:"
     tail -n 200 "$LOG_FILE" || true
   fi
-
 else
-  # Fast path on restarts
   log "[BOOTSTRAP] Skipped (found $BOOT_OK)."
   # shellcheck disable=SC1091
   source "$VENV_DIR/bin/activate"
   python -V | tee -a "$LOG_FILE"
   export PIP_NO_BUILD_ISOLATION=1
+  # >>> NEW: verify hf_transfer on every restart too
+  ensure_hf_transfer
+  # <<<
   if [ "$WAN2GP_ONNX_CUDA" != "1" ]; then export ORT_DISABLE_CUDA=1; fi
 fi
 
@@ -221,6 +233,7 @@ start_app(){
   GRADIO_SERVER_NAME="0.0.0.0" \
   GRADIO_SERVER_PORT="$WAN2GP_PORT" \
   UVICORN_TIMEOUT_KEEP_ALIVE="$UVICORN_TIMEOUT_KEEP_ALIVE" \
+  HF_HUB_ENABLE_HF_TRANSFER="${HF_HUB_ENABLE_HF_TRANSFER}" \
   python wgp.py \
     --listen \
     --server-port "${WAN2GP_PORT}" \
