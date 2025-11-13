@@ -29,7 +29,6 @@ fi
 # ---- Python deps: pin torch 2.4.x (fixes torch.compiler attribute) ----
 echo "[Py] Pinning PyTorch 2.4.x (CUDA 12.1 wheels are broadly compatible on RunPod)..."
 python3 -m pip install -U pip >/dev/null
-# If your base already has 2.5+, force-downgrade:
 python3 - <<'PY'
 import subprocess, sys
 def pip(*args): subprocess.check_call([sys.executable, "-m", "pip", *args])
@@ -40,7 +39,6 @@ PY
 
 # ---- SageAttention for KJNodes PatchSageAttentionKJ ----
 echo "[Py] Installing SageAttention (required by KJNodes PatchSageAttentionKJ)..."
-# v1.0.6 is widely used with ComfyUI and works fine with torch 2.4.x
 python3 -m pip install "sageattention==1.0.6" --no-build-isolation
 
 # ---- Required node packs ----
@@ -88,12 +86,12 @@ dl() {  # repo file outpath
   echo "[DL] $repo :: $file  ->  $out"
   mkdir -p "$(dirname "$out")"
   if [[ -n "$HF_TOKEN" ]]; then
-    HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" huggingface-cli download "$repo" "$file" --local-dir "$(dirname "$out")" --local-dir-use-symlinks False --resume
+    HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" huggingface-cli download "$repo" "$file" \
+      --local-dir "$(dirname "$out")" --local-dir-use-symlinks False --resume
   else
-    huggingface-cli download "$repo" "$file" --local-dir "$(dirname "$out")" --local-dir-use-symlinks False --resume
+    huggingface-cli download "$repo" "$file" \
+      --local-dir "$(dirname "$out")" --local-dir-use-symlinks False --resume
   fi
-  # huggingface-cli puts the file at that path if local-dir-use-symlinks False
-  # If it created a nested path, fix it:
   if [[ ! -s "$out" ]]; then
     fpath="$(find "$(dirname "$out")" -maxdepth 2 -type f -name "$(basename "$out")" | head -n1 || true)"
     [[ -n "${fpath:-}" ]] && mv -f "$fpath" "$out"
@@ -110,16 +108,14 @@ dl "comfyanonymous/flux_text_encoders" "clip_l.safetensors" \
 dl "comfyanonymous/flux_text_encoders" "t5xxl_fp16.safetensors" \
    "$MODEL_DIR/text_encoders/t5xxl_fp16.safetensors"
 
-# VAE (ae.safetensors) — two reliable sources, prefer Lumina repack, fallback to madebyollin
-if [[ ! -s "$MODEL_DIR/vae/ae.safetensors" ]]; then
-  set +e
-  huggingface-cli download "Comfy-Org/Lumina_Image_2.0_Repackaged" "split_files/vae/ae.safetensors" \
-    --local-dir "$MODEL_DIR/vae" --local-dir-use-symlinks False --resume
-  if [[ ! -s "$MODEL_DIR/vae/ae.safetensors" ]]; then
-    huggingface-cli download "madebyollin/ae-sdxl-v1" "ae.safetensors" \
-      --local-dir "$MODEL_DIR/vae" --local-dir-use-symlinks False --resume
-  fi
-  set -e
+# VAE: use Lumina 2.0 repack via direct URL
+VAE_OUT="$MODEL_DIR/vae/ae.safetensors"
+if [[ ! -s "$VAE_OUT" ]]; then
+  echo "[DL] Lumina VAE -> $VAE_OUT"
+  mkdir -p "$(dirname "$VAE_OUT")"
+  curl -L \
+    "https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged/resolve/main/split_files/vae/ae.safetensors" \
+    -o "$VAE_OUT"
 fi
 
 echo "[Models] Final check:"
