@@ -87,8 +87,6 @@ dl() {  # repo file outpath
   else
     huggingface-cli download "$repo" "$file" --local-dir "$(dirname "$out")" --local-dir-use-symlinks False --resume
   fi
-  # huggingface-cli puts the file at that path if local-dir-use-symlinks False
-  # If it created a nested path, fix it:
   if [[ ! -s "$out" ]]; then
     fpath="$(find "$(dirname "$out")" -maxdepth 2 -type f -name "$(basename "$out")" | head -n1 || true)"
     [[ -n "${fpath:-}" ]] && mv -f "$fpath" "$out"
@@ -105,17 +103,27 @@ dl "comfyanonymous/flux_text_encoders" "clip_l.safetensors" \
 dl "comfyanonymous/flux_text_encoders" "t5xxl_fp16.safetensors" \
    "$MODEL_DIR/text_encoders/t5xxl_fp16.safetensors"
 
-# VAE (ae.safetensors) — two reliable sources, prefer Lumina repack, fallback to madebyollin
-if [[ ! -s "$MODEL_DIR/vae/ae.safetensors" ]]; then
-  set +e
-  huggingface-cli download "Comfy-Org/Lumina_Image_2.0_Repackaged" "split_files/vae/ae.safetensors" \
-    --local-dir "$MODEL_DIR/vae" --local-dir-use-symlinks False --resume && \
-    mv -f "$MODEL_DIR/vae/ae.safetensors" "$MODEL_DIR/vae/ae.safetensors" 2>/dev/null
-  if [[ ! -s "$MODEL_DIR/vae/ae.safetensors" ]]; then
+# ---- VAE (ae.safetensors) — robust fetch with direct-URL fallback ----
+VAE_OUT="$MODEL_DIR/vae/ae.safetensors"
+VAE_URL_RESOLVE="https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged/resolve/main/split_files/vae/ae.safetensors"
+if [[ ! -s "$VAE_OUT" ]]; then
+  echo "[VAE] Fetching ae.safetensors…"
+  # 1) Try direct URL with resume (most reliable across environments)
+  curl -H "Accept: application/octet-stream" -fL -C - -o "${VAE_OUT}.part" "$VAE_URL_RESOLVE" || true
+  [[ -s "${VAE_OUT}.part" ]] && mv -f "${VAE_OUT}.part" "$VAE_OUT"
+  # 2) Fallback to huggingface-cli from madebyollin if still missing
+  if [[ ! -s "$VAE_OUT" ]]; then
+    echo "[VAE] Direct URL fallback failed, trying madebyollin/ae-sdxl-v1 via HF CLI…"
     huggingface-cli download "madebyollin/ae-sdxl-v1" "ae.safetensors" \
-      --local-dir "$MODEL_DIR/vae" --local-dir-use-symlinks False --resume
+      --local-dir "$MODEL_DIR/vae" --local-dir-use-symlinks False --resume || true
   fi
-  set -e
+  # 3) Final hard check
+  if [[ ! -s "$VAE_OUT" ]]; then
+    echo "❌ VAE missing at $VAE_OUT"
+    echo "   Manual one-liner:"
+    echo "   curl -fL -C - '$VAE_URL_RESOLVE' -o '$VAE_OUT'"
+    exit 14
+  fi
 fi
 
 echo "[Models] Final check:"
