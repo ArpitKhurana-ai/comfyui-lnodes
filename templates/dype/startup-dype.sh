@@ -1,24 +1,27 @@
 #!/usr/bin/env bash
 # DyPE + FLUX on top of an existing ComfyUI container
 # - No Dockerfile edits
-# - Pins PyTorch 2.4.x to avoid torch.compiler errors
+# - Pins PyTorch 2.4.x only if needed (skips if already correct)
 # - Installs required node packs (DyPE, KJNodes, rgthree-comfy)
 # - Ensures exact models are present in exact folders ComfyUI expects
-# - Provides filename aliases for flux1-dev-fp16 / flux1-dev-fp8
-# - Preloads the Flux-DyPE workflow JSON
+# - Preloads the Flux-DyPE workflow JSON from this repo into ComfyUI
 
 set -euo pipefail
 
-# ---- Config (override via env if you like) ----
+# ---- Paths & config ----
 ROOT="${ROOT:-/workspace}"
 COMFY="$ROOT/ComfyUI"
 PORT="${PORT:-8188}"
 HF_TOKEN="${HF_TOKEN:-${HUGGING_FACE_HUB_TOKEN:-}}"
 
+# Directory of this script (your comfyui-lnodes repo root)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 echo "=== [DyPE] bootstrap @ $(date) ==="
 echo "[cfg] ROOT=$ROOT  COMFY=$COMFY  PORT=$PORT"
+echo "[cfg] SCRIPT_DIR=$SCRIPT_DIR"
 
-# ---- Sanity: ComfyUI presence ----
+# ---- ComfyUI repo ----
 if [[ ! -f "$COMFY/main.py" ]]; then
   echo "[ComfyUI] Not found, cloning..."
   rm -rf "$COMFY"
@@ -28,14 +31,36 @@ else
   (cd "$COMFY" && git fetch --all -p && git pull --rebase || true)
 fi
 
-# ---- Python deps: pin torch 2.4.x (fixes torch.compiler attribute) ----
-echo "[Py] Pinning PyTorch 2.4.x (CUDA 12.1 wheels are broadly compatible on RunPod)..."
-python3 -m pip install -U pip >/dev/null
-python3 - <<'PY'
+# ---- PyTorch 2.4.x check + install (only if needed) ----
+echo "[Py] Checking if Torch 2.4.1/cu121 stack is already installed..."
+if ! python3 - <<'PY'
+import sys
+
+required = {
+    "torch": "2.4.1",
+    "torchvision": "0.19.1",
+    "torchaudio": "2.4.1",
+}
+
+for name, want in required.items():
+    try:
+        m = __import__(name)
+    except Exception:
+        sys.exit(1)
+    ver = getattr(m, "__version__", "")
+    base = ver.split("+", 1)[0]
+    if base != want:
+        sys.exit(1)
+
+sys.exit(0)
+PY
+then
+  echo "[Py] Installing Torch 2.4.1/cu121 stack (first time only, large download)..."
+  python3 -m pip install -U pip >/dev/null
+  python3 - <<'PY'
 import subprocess, sys
 def pip(*args): subprocess.check_call([sys.executable, "-m", "pip", *args])
 
-# Prefer cu121 for widest availability
 pip(
     "install",
     "--upgrade",
@@ -45,12 +70,22 @@ pip(
     "torchaudio==2.4.1",
 )
 PY
+else
+  echo "[Py] Torch stack already at required versions – skipping reinstall."
+fi
 
 # ---- SageAttention for KJNodes PatchSageAttentionKJ ----
-echo "[Py] Installing SageAttention (required by KJNodes PatchSageAttentionKJ)..."
-python3 -m pip install "sageattention==1.0.6" --no-build-isolation
+echo "[Py] Ensuring SageAttention is installed..."
+python3 - <<'PY'
+import importlib, subprocess, sys
 
-# Ensure huggingface-cli exists
+try:
+    importlib.import_module("sageattention")
+except Exception:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "sageattention==1.0.6", "--no-build-isolation"])
+PY
+
+# Ensure huggingface-cli exists (small, one-time)
 python3 -m pip install -q "huggingface_hub" >/dev/null 2>&1 || true
 
 # ---- Required node packs ----
@@ -99,26 +134,22 @@ dl() {  # repo file outpath
   mkdir -p "$(dirname "$out")"
   if [[ -n "$HF_TOKEN" ]]; then
     HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" huggingface-cli download "$repo" "$file" \
-      --local-dir "$(dirname "$out")" --local-dir-use-symlinks False --resume
+      --local-dir "$(dirname "$out")" --local-dir-use-symlinks False
   else
     huggingface-cli download "$repo" "$file" \
-      --local-dir "$(dirname "$out")" --local-dir-use-symlinks False --resume
+      --local-dir "$(dirname "$out")" --local-dir-use-symlinks False
   fi
   if [[ ! -s "$out" ]]; then
-    fpath="$(find "$(dirname "$out")" -maxdepth 2 -type f -name "$(basename "$out")" | head -n1 || true)"
-    [[ -n "${fpath:-}" ]] && mv -f "$fpath" "$out"
+    # try to move from cache name to final path if needed
+    local fpath
+    fpath="$(find "$(dirname "$out")" -maxdepth 3 -type f -name "$(basename "$out")" | head -n1 || true)"
+    [[ -n "${fpath:-}" && "$fpath" != "$out" ]] && mv -f "$fpath" "$out"
   fi
 }
 
 ########################################
 # UNET (Flux) – single official BFL file
 ########################################
-
-# Clean up any old fp8/fp16 copies so we only keep one model
-rm -f "$MODEL_DIR/diffusion_models/flux1-dev-fp8.safetensors" 2>/dev/null || true
-rm -f "$MODEL_DIR/diffusion_models/flux1-dev-fp16.safetensors" 2>/dev/null || true
-
-# Download the main FLUX.1-dev checkpoint
 dl "black-forest-labs/FLUX.1-dev" "flux1-dev.safetensors" \
    "$MODEL_DIR/diffusion_models/flux1-dev.safetensors"
 
@@ -129,7 +160,6 @@ dl "comfyanonymous/flux_text_encoders" "clip_l.safetensors" \
    "$MODEL_DIR/text_encoders/clip_l.safetensors"
 dl "comfyanonymous/flux_text_encoders" "t5xxl_fp16.safetensors" \
    "$MODEL_DIR/text_encoders/t5xxl_fp16.safetensors"
-
 
 # --- VAE: Lumina 2.0 repack (ae.safetensors) ---
 VAE_OUT="$MODEL_DIR/vae/ae.safetensors"
@@ -146,8 +176,8 @@ ls -lh "$MODEL_DIR/diffusion_models" || true
 ls -lh "$MODEL_DIR/text_encoders" || true
 ls -lh "$MODEL_DIR/vae" || true
 
-# ---- Preload DyPE workflow (your Flux-DyPE.json) ----
-TEMPLATE_WORKFLOW="$ROOT/comfyui-lnodes/templates/dype/workflow/Flux-DyPE.json"
+# ---- Preload DyPE workflow from this repo ----
+TEMPLATE_WORKFLOW="$SCRIPT_DIR/templates/dype/workflow/Flux-DyPE.json"
 TARGET_DIR="$COMFY/user/default/workflows"
 TARGET_FILE="$TARGET_DIR/Flux-DyPE.json"
 
