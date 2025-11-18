@@ -3,7 +3,7 @@
 # - No Dockerfile edits
 # - Installs everything only once per volume (fast boots after first time)
 # - Uses a single official FLUX.1-dev model (no fp8/fp16 copies)
-# - Preloads your Flux-DyPE workflow JSON
+# - Preloads your Flux-DyPE workflow JSON into ComfyUI/user/default/workflows
 
 set -euo pipefail
 
@@ -144,25 +144,28 @@ PY
   ls -lh "$MODEL_DIR/text_encoders" || true
   ls -lh "$MODEL_DIR/vae" || true
 
-  # ---- Preload DyPE workflow (Flux-DyPE.json) ----
-  TEMPLATE_REPO="${TEMPLATE_REPO:-$ROOT/comfyui-lnodes}"
-  TEMPLATE_WORKFLOW="$TEMPLATE_REPO/templates/dype/workflow/Flux-DyPE.json"
-  TARGET_DIR="$COMFY/user/default/workflows"
-  TARGET_FILE="$TARGET_DIR/Flux-DyPE.json"
-
-  if [[ -f "$TEMPLATE_WORKFLOW" ]]; then
-    echo "[Workflow] Installing DyPE template -> $TARGET_FILE"
-    mkdir -p "$TARGET_DIR"
-    cp -f "$TEMPLATE_WORKFLOW" "$TARGET_FILE"
-  else
-    echo "[Workflow] Template not found at $TEMPLATE_WORKFLOW (skipping)"
-  fi
-
   # Mark heavy setup done so next boots are fast
   touch "$SETUP_FLAG"
   echo "[Setup] Heavy setup finished, flag created."
 else
   echo "[Setup] Flag found – skipping heavy installs & downloads."
+fi
+
+########################################
+# ALWAYS: copy your Flux-DyPE workflow into ComfyUI
+########################################
+TEMPLATE_REPO="${TEMPLATE_REPO:-$ROOT/comfyui-lnodes}"
+TEMPLATE_WORKFLOW="$TEMPLATE_REPO/templates/dype/workflow/Flux-DyPE.json"
+TARGET_DIR="$COMFY/user/default/workflows"
+TARGET_FILE="$TARGET_DIR/Flux-DyPE.json"
+
+echo "[Workflow] Template repo: $TEMPLATE_REPO"
+if [[ -f "$TEMPLATE_WORKFLOW" ]]; then
+  echo "[Workflow] Installing DyPE template -> $TARGET_FILE"
+  mkdir -p "$TARGET_DIR"
+  cp -f "$TEMPLATE_WORKFLOW" "$TARGET_FILE"
+else
+  echo "[Workflow] Template not found at $TEMPLATE_WORKFLOW (skipping)"
 fi
 
 # ---- Launch ComfyUI (clean boot) ----
