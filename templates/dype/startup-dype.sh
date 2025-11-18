@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # DyPE + FLUX on top of an existing ComfyUI container
 # - No Dockerfile edits
-# - Minimal installs (no torch re-pin)
-# - Reuse any existing FLUX.1-dev checkpoint on the volume
-# - Preload Flux-DyPE workflow JSON from GitHub into ComfyUI
+# - Pins PyTorch 2.4.1 once per volume (fixes torch.compiler error)
+# - Reuses existing FLUX.1-dev checkpoint on the volume
+# - Preloads Flux-DyPE workflow JSON into ComfyUI
 
 set -euo pipefail
 
@@ -14,7 +14,7 @@ PORT="${PORT:-8188}"
 HF_TOKEN="${HF_TOKEN:-${HUGGING_FACE_HUB_TOKEN:-}}"
 
 # First-run flag so heavy work happens only once per volume
-SETUP_FLAG="$ROOT/.dype_setup_done_v3"
+SETUP_FLAG="$ROOT/.dype_setup_done_v4"
 
 # Raw GitHub URL for your workflow JSON
 WORKFLOW_URL="${WORKFLOW_URL:-https://raw.githubusercontent.com/ArpitKhurana-ai/comfyui-lnodes/main/templates/dype/workflow/Flux-DyPE.json}"
@@ -36,7 +36,24 @@ fi
 if [[ ! -f "$SETUP_FLAG" ]]; then
   echo "[Setup] First-time DyPE setup (this is the only slow boot for this volume)..."
 
-  # ---- Python deps (VERY LIGHT) ----
+  # ---- PyTorch stack: 2.4.1 (fixes torch.compiler issues) ----
+  echo "[Py] Installing PyTorch 2.4.1 / cu121 stack..."
+  python3 -m pip install -U pip >/dev/null 2>&1 || true
+  python3 - <<'PY'
+import subprocess, sys
+def pip(*args): subprocess.check_call([sys.executable, "-m", "pip", *args])
+
+pip(
+    "install",
+    "--upgrade",
+    "--extra-index-url", "https://download.pytorch.org/whl/cu121",
+    "torch==2.4.1",
+    "torchvision==0.19.1",
+    "torchaudio==2.4.1",
+)
+PY
+
+  # ---- Python deps for nodes ----
   echo "[Py] Ensuring sageattention + huggingface_hub..."
   python3 -m pip install -q "sageattention==1.0.6" "huggingface_hub" || true
 
@@ -139,7 +156,7 @@ if [[ ! -f "$SETUP_FLAG" ]]; then
   touch "$SETUP_FLAG"
   echo "[Setup] Done – future boots on this volume will skip heavy work."
 else
-  echo "[Setup] Flag present – skipping heavy installs/downloads."
+  echo "[Setup] Flag present – skipping heavy installs/downloads (torch 2.4.1 should already be installed)."
 fi
 
 # ----------------- Preload workflow (EVERY BOOT) -----------------
