@@ -3,7 +3,7 @@
 # - No Dockerfile edits
 # - Minimal installs (no torch re-pin)
 # - Reuse any existing FLUX.1-dev checkpoint on the volume
-# - Preload your Flux-DyPE workflow JSON into ComfyUI
+# - Preload Flux-DyPE workflow JSON from GitHub into ComfyUI
 
 set -euo pipefail
 
@@ -13,10 +13,15 @@ COMFY="$ROOT/ComfyUI"
 PORT="${PORT:-8188}"
 HF_TOKEN="${HF_TOKEN:-${HUGGING_FACE_HUB_TOKEN:-}}"
 
+# First-run flag so heavy work happens only once per volume
 SETUP_FLAG="$ROOT/.dype_setup_done_v3"
+
+# Raw GitHub URL for your workflow JSON
+WORKFLOW_URL="${WORKFLOW_URL:-https://raw.githubusercontent.com/ArpitKhurana-ai/comfyui-lnodes/main/templates/dype/workflow/Flux-DyPE.json}"
 
 echo "=== [DyPE] bootstrap @ $(date) ==="
 echo "[cfg] ROOT=$ROOT  COMFY=$COMFY  PORT=$PORT  FLAG=$SETUP_FLAG"
+echo "[cfg] WORKFLOW_URL=$WORKFLOW_URL"
 
 # ----------------- ComfyUI repo -----------------
 if [[ ! -f "$COMFY/main.py" ]]; then
@@ -138,17 +143,22 @@ else
 fi
 
 # ----------------- Preload workflow (EVERY BOOT) -----------------
-TEMPLATE_REPO="${TEMPLATE_REPO:-$ROOT/comfyui-lnodes}"
-TEMPLATE_WORKFLOW="$TEMPLATE_REPO/templates/dype/workflow/Flux-DyPE.json"
-TARGET_DIR="$COMFY/user/default/workflows"
-TARGET_FILE="$TARGET_DIR/Flux-DyPE.json"
+echo "[Workflow] Installing Flux-DyPE workflow from GitHub..."
 
-if [[ -f "$TEMPLATE_WORKFLOW" ]]; then
-  echo "[Workflow] Syncing DyPE template -> $TARGET_FILE"
-  mkdir -p "$TARGET_DIR"
-  cp -f "$TEMPLATE_WORKFLOW" "$TARGET_FILE"
+WF_TMP="$COMFY/Flux-DyPE.json"
+if curl -fsSL "$WORKFLOW_URL" -o "$WF_TMP"; then
+  echo "[Workflow] Downloaded to $WF_TMP"
+
+  # 1) Built-in gallery (left sidebar categories)
+  install -Dm644 "$WF_TMP" "$COMFY/web/assets/workflows/DyPE/Flux-DyPE.json"
+
+  # 2) User workflows (shown in the Workflows sidebar)
+  install -Dm644 "$WF_TMP" "$COMFY/user/default/workflows/Flux-DyPE.json"
+
+  # 3) ComfyUI-Manager gallery (optional)
+  install -Dm644 "$WF_TMP" "$COMFY/custom_nodes/ComfyUI-Manager/workflows/DyPE/Flux-DyPE.json" || true
 else
-  echo "[Workflow] Template not found at $TEMPLATE_WORKFLOW (skipping copy)"
+  echo "[Workflow] ERROR: could not download $WORKFLOW_URL"
 fi
 
 # ----------------- Launch ComfyUI -----------------
