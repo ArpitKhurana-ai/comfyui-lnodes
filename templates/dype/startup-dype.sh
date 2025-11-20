@@ -71,7 +71,7 @@ PY
   fi
 
   if [[ ! -d "rgthree-comfy" ]]; then
-    git clone https://github.com/rgthree/rgthree-comfy.git
+    git clone https://github.com/rgthree-comfy.git https://github.com/rgthree/rgthree-comfy.git || true
   fi
 
   if [[ ! -d "ComfyUI-Manager" ]]; then
@@ -120,10 +120,11 @@ PY
         --local-dir "$(dirname "$out")" --local-dir-use-symlinks False --resume
     fi
 
-    # Some HF repos save into a subfolder – fix that
+    # Some HF repos save into nested subfolders – fix that
     if [[ ! -s "$out" ]]; then
       local fpath
-      fpath="$(find "$(dirname "$out")" -maxdepth 2 -type f -name "$(basename "$out")" 2>/dev/null | head -n1 || true)"
+      # look a bit deeper so split_files/*/basename is found
+      fpath="$(find "$(dirname "$out")" -maxdepth 4 -type f -name "$(basename "$out")" 2>/dev/null | head -n1 || true)"
       [[ -n "${fpath:-}" ]] && mv -f "$fpath" "$out"
     fi
   }
@@ -132,6 +133,16 @@ PY
   dl "Comfy-Org/FLUX.1-Krea-dev_ComfyUI" \
      "split_files/diffusion_models/flux1-krea-dev_fp8_scaled.safetensors" \
      "$MODEL_DIR/diffusion_models/flux1-krea-dev_fp8_scaled.safetensors"
+
+  # EXTRA SAFETY: flatten any split_files layout so ComfyUI never sees it
+  KREA_NESTED_DIR="$MODEL_DIR/diffusion_models/split_files/diffusion_models"
+  KREA_NESTED_FILE="$KREA_NESTED_DIR/flux1-krea-dev_fp8_scaled.safetensors"
+  if [[ -f "$KREA_NESTED_FILE" ]]; then
+    echo "[Models] Flattening Krea UNET from split_files/ -> diffusion_models/"
+    mv -f "$KREA_NESTED_FILE" "$MODEL_DIR/diffusion_models/flux1-krea-dev_fp8_scaled.safetensors"
+    rmdir "$KREA_NESTED_DIR" 2>/dev/null || true
+    rmdir "$MODEL_DIR/diffusion_models/split_files" 2>/dev/null || true
+  fi
 
   # Text encoders for FLUX
   dl "comfyanonymous/flux_text_encoders" "clip_l.safetensors" \
