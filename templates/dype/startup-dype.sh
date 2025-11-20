@@ -2,7 +2,7 @@
 # DyPE + FLUX on top of an existing ComfyUI container
 # - No Dockerfile edits
 # - Pins PyTorch 2.4.1 once per volume (fixes torch.compiler error)
-# - Reuses existing FLUX.1-dev checkpoint on the volume
+# - Uses FLUX.1-Krea-dev fp8 as the main UNet
 # - Preloads Flux-DyPE workflow JSON into ComfyUI
 
 set -euo pipefail
@@ -128,9 +128,10 @@ PY
     fi
   }
 
-  # UNET (FLUX.1-dev) – single official file
-  dl "black-forest-labs/FLUX.1-dev" "flux1-dev.safetensors" \
-     "$MODEL_DIR/diffusion_models/flux1-dev.safetensors"
+  # UNET (FLUX.1-Krea-dev fp8) – recommended for DyPE
+  dl "Comfy-Org/FLUX.1-Krea-dev_ComfyUI" \
+     "split_files/diffusion_models/flux1-krea-dev_fp8_scaled.safetensors" \
+     "$MODEL_DIR/diffusion_models/flux1-krea-dev_fp8_scaled.safetensors"
 
   # Text encoders for FLUX
   dl "comfyanonymous/flux_text_encoders" "clip_l.safetensors" \
