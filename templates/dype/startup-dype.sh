@@ -70,8 +70,9 @@ PY
     git clone https://github.com/kijai/ComfyUI-KJNodes.git
   fi
 
+  # ✅ FIXED: proper rgthree-comfy clone
   if [[ ! -d "rgthree-comfy" ]]; then
-    git clone https://github.com/rgthree-comfy.git https://github.com/rgthree/rgthree-comfy.git || true
+    git clone https://github.com/rgthree/rgthree-comfy.git
   fi
 
   if [[ ! -d "ComfyUI-Manager" ]]; then
